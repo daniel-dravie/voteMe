@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% set show_navbar = false %}
+
+{% block content %}
+<div class="login-box">
+    <h2>JUABEN SHS Voting System</h2>
+    <form method="POST">
+        <div class="floating-label">
+            <input type="text" name="username" id="username" placeholder=" " required>
+            <label for="username">Username / Index Number</label>
+        </div>
+        <div class="floating-label">
+            <input type="password" name="password" id="password" placeholder=" ">
+            <label for="password">Password (Admin Only)</label>
+        </div>
+        <button type="submit">Login</button>
+    </form>
+</div>
+
+<!-- Admin post-login choice modal (shows when admin just authenticated) -->
+<div id="admin-choice-modal" class="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Welcome, Administrator</h3>
+      <button class="modal-close" onclick="closeAdminModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>What would you like to do?</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <!-- Inline kiosk open form (AJAX) -->
+        <form id="open-kiosk-form" style="display:flex;gap:8px;align-items:flex-end;">
+          <div class="floating-label">
+            <input type="password" name="device_password" id="modal-device-password" placeholder=" " required>
+            <label for="modal-device-password">Device Password</label>
+          </div>
+          <input type="hidden" name="action" value="open">
+          <button type="button" class="btn" id="open-kiosk-btn">Open kiosk now</button>
+        </form>
+
+        <a class="btn" href="{{ url_for('admindashboard') }}">Go to Dashboard</a>
+        <a class="btn btn-secondary" href="{{ url_for('logout') }}">Log out</a>
+      </div>
+      <div id="admin-kiosk-msg" style="margin-top:8px"></div>
+      {% if election and election.device_open %}
+      <p style="margin-top:12px;color:green;"><strong>Note:</strong> Kiosk is currently <strong>OPEN</strong>.</p>
+      {% endif %}
+
+<script>
+// AJAX handler to open kiosk from modal
+document.getElementById('open-kiosk-btn').addEventListener('click', async function(){
+  const pwd = document.getElementById('modal-device-password').value;
+  const msgEl = document.getElementById('admin-kiosk-msg');
+  msgEl.innerText = '';
+  try{
+    const r = await fetch('{{ url_for('admin_voter_kiosk') }}', {
+      method:'POST',
+      headers: {
+        'Content-Type':'application/json',
+        'X-Requested-With':'XMLHttpRequest'
+      },
+      body: JSON.stringify({ action: 'open', device_password: pwd })
+    });
+    const j = await r.json();
+    if(j.success){
+      msgEl.style.color = 'green';
+      msgEl.innerText = j.message || 'Kiosk opened.';
+      // update modal note
+      const note = document.querySelector('#admin-choice-modal .modal-body p');
+      if(note){ note.innerHTML = '<strong>Note:</strong> Kiosk is currently <strong>OPEN</strong>.'; }
+    } else {
+      msgEl.style.color = 'red';
+      msgEl.innerText = j.message || 'Failed to open kiosk';
+    }
+  }catch(e){
+    msgEl.style.color = 'red';
+    msgEl.innerText = 'Request failed.';
+  }
+});
+</script>    </div>
+  </div>
+</div>
+
+<script>
+function closeAdminModal(){
+  document.getElementById('admin-choice-modal').classList.remove('show');
+}
+
+// Auto-open the modal if server indicated to show it
+{% if show_admin_modal %}
+document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('admin-choice-modal').classList.add('show');
+});
+{% endif %}
+</script>
+{% endblock %} 

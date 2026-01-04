@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Manage Candidates{% endblock %}
+
+{% block content %}
+<h3>Register Candidate</h3>
+
+<form method="POST">
+    <div class="floating-label">
+        <input type="text" name="index_number" id="index_number" placeholder=" " value="{{ voter_info.index_number if voter_info else '' }}" required>
+        <label for="index_number">Voter Index Number</label>
+    </div>
+    <button type="submit">Fetch Voter Info</button>
+</form>
+
+{% if voter_info %}
+<p>Name: {{ voter_info.name }}</p>
+<p>Class: {{ voter_info.classroom.name }}</p>
+<p>Year: {{ voter_info.classroom.year }}</p>
+<p>Sex: {{ voter_info.sex }}</p>
+
+<form method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="index_number" value="{{ voter_info.index_number }}">
+    <div class="floating-label">
+        <select name="portfolio_id" required>
+            <option value="" disabled selected hidden>Select portfolio</option>
+            {% for p in portfolios %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+        </select>
+        <label>Portfolio</label>
+    </div>
+    <div class="floating-label">
+        <input type="file" name="photo" accept="image/*">
+        <label>Candidate Photo (optional)</label>
+    </div>
+    <button type="submit">Register Candidate</button>
+</form>
+{% endif %}
+
+<hr>
+<h3>Registered Candidates</h3>
+<!-- Hidden portfolio options for modal population -->
+<select id="portfolio-options" style="display:none">
+    <option value="">None</option>
+    {% for p in portfolios %}
+    <option value="{{ p.id }}">{{ p.name }}</option>
+    {% endfor %}
+</select>
+<table id="candidates-table" class="data-table">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th class="col-photo">Photo</th>
+            <th class="col-name">Name</th>
+            <th class="col-portfolio">Portfolio</th>
+            <th class="col-class">Class</th>
+            <th colspan="2" class="col-actions">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in candidates %}
+        <tr data-candidate-id="{{ c.id }}">
+            <td class="col-index">{{ loop.index }}</td>
+            <td class="col-photo">
+                {% if c.photo %}
+                    <img src="{{ url_for('static', filename='uploads/' ~ c.photo) }}"
+                         class="candidate-photo"
+                         alt="{{ c.user.name }}">
+                {% else %}
+                    <div class="candidate-photo placeholder">No Photo</div>
+                {% endif %}
+            </td>
+            <td class="col-name">{{ c.user.name if c.user else 'N/A' }}</td>
+            <td class="col-portfolio">{{ c.portfolio.name if c.portfolio else 'N/A' }}</td>
+            <td class="col-class">{{ c.classroom.name if c.classroom else 'N/A' }}</td>
+            <td><button class="btn-secondary" onclick='openCandidateModal({{ c.id }}, {{ c.user.name|tojson }}, "{{ c.portfolio.id if c.portfolio else '' }}")'>Edit</button></td>
+            <td><button class="btn-secondary" onclick="softDeleteCandidate({{ c.id }}, this)">Delete</button></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Candidate Edit Modal -->
+<div id="candidate-modal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Edit Candidate</h3>
+            <button class="modal-close" onclick="closeModal('candidate-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <form id="candidate-modal-form">
+                <p><strong>Voter:</strong> <span id="modal-candidate-name"></span></p>
+                <div class="floating-label">
+                    <select name="portfolio_id" id="modal-candidate-portfolio" required>
+                        <!-- options populated from #portfolio-options -->
+                    </select>
+                    <label for="modal-candidate-portfolio">Portfolio</label>
+                </div>
+            </form>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal('candidate-modal')">Cancel</button>
+            <button class="btn" onclick="submitCandidateModal()">Save</button>
+        </div>
+    </div>
+</div>  
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% set show_navbar = false %}
+
+{% block title %}Device Authentication{% endblock %}
+
+{% block content %}
+<div class="login-box">
+    <h2>Enter Device Password</h2>
+    <form method="POST">
+        <input type="password" name="device_password" placeholder="Device Password" required>
+        <button type="submit">Authenticate Device</button>
+    </form>
+</div>
+{% endblock %}

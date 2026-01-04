@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Admin: Next steps{% endblock %}
+
+{% block content %}
+<h3>Welcome, Administrator</h3>
+<p>What would you like to do?</p>
+<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+  <a class="btn" href="{{ url_for('admin_voter_kiosk') }}">Open/Control Voter Kiosk</a>
+  <a class="btn" href="{{ url_for('admindashboard') }}">Go to Dashboard</a>
+  <a class="btn btn-secondary" href="{{ url_for('logout') }}">Log out</a>
+</div>
+
+{% if election and election.device_open %}
+<p style="margin-top:12px;color:green;"><strong>Note:</strong> Kiosk is currently <strong>OPEN</strong>. Voters can visit <code>/vote</code>.</p>
+{% endif %}
+
+{% endblock %}

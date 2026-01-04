@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Now Serving{% endblock %}
+
+{% block content %}
+<div class="now-serving">
+  <h2>Now Serving</h2>
+  <div class="status-grid">
+    <div class="status-card">
+      <div class="status-label">Total Voters</div>
+      <div class="big-number" id="total-count">{{ total }}</div>
+    </div>
+    <div class="status-card">
+      <div class="status-label">Voted</div>
+      <div class="big-number" id="voted-count">{{ voted }}</div>
+    </div>
+    <div class="status-card">
+      <div class="status-label">Remaining</div>
+      <div class="big-number" id="remaining-count">{{ remaining }}</div>
+    </div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-label">Progress</div>
+    <div class="progress">
+      <div class="progress-bar" id="progress-bar" style="width: {% if total %}{{ (voted/total * 100) | round(1) }}%{% else %}0%{% endif %};"></div>
+    </div>
+  </div>
+
+  <div class="last-served">
+    <h3>Last Voter Served</h3>
+    {% if last_voter %}
+    <p id="last-served">{{ last_voter.index }} — {{ last_voter.name }}</p>
+    {% else %}
+    <p id="last-served">None yet</p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+// Poll the status endpoint every 5 seconds and update counts
+async function refreshNowServing(){
+  try{
+    const r = await fetch('{{ url_for('now_serving_status') }}');
+    if(!r.ok) return;
+    const d = await r.json();
+    document.getElementById('total-count').innerText = d.total;
+    document.getElementById('voted-count').innerText = d.voted;
+    document.getElementById('remaining-count').innerText = d.remaining;
+    const percent = d.total ? Math.round((d.voted / d.total) * 1000)/10 : 0;
+    document.getElementById('progress-bar').style.width = percent + '%';
+    document.getElementById('progress-bar').innerText = percent + '%';
+    const last = d.last_voter ? `${d.last_voter.index} — ${d.last_voter.name}` : 'None yet';
+    document.getElementById('last-served').innerText = last;
+  }catch(e){
+    // silent failure, will try again next interval
+    console.error('Now serving poll failed', e);
+  }
+}
+setInterval(refreshNowServing, 5000);
+
+// Fullscreen hint and button: show if not in fullscreen
+function updateFullscreenHint(){
+  const hint = document.getElementById('fullscreen-hint');
+  if(!hint) return;
+  const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  if(isFull){
+    hint.style.display = 'none';
+  } else {
+    hint.style.display = 'flex';
+  }
+}
+
+document.addEventListener('fullscreenchange', updateFullscreenHint);
+document.addEventListener('webkitfullscreenchange', updateFullscreenHint);
+
+window.addEventListener('load', function(){
+  // initial state
+  updateFullscreenHint();
+  // try to hide hint if automatic fullscreen already succeeded
+  setTimeout(updateFullscreenHint, 500);
+});
+
+function tryEnterFullscreen(){
+  const el = document.documentElement;
+  const request = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+  if(request){
+    try{ request.call(el); }catch(e){}
+  }
+}
+
+// Add a small hint UI
+const hintHtml = `
+  <div id="fullscreen-hint" class="fullscreen-hint" role="note" aria-live="polite" style="display:none;">
+    <div class="hint-inner">
+      <span>For the best display, enter fullscreen.</span>
+      <button id="enter-fullscreen" class="btn">Enter Fullscreen</button>
+      <button id="hint-dismiss" class="btn btn-secondary">Dismiss</button>
+    </div>
+  </div>
+`;
+
+document.body.insertAdjacentHTML('beforeend', hintHtml);
+document.getElementById('enter-fullscreen').addEventListener('click', function(e){
+  tryEnterFullscreen();
+  setTimeout(updateFullscreenHint, 300);
+});
+document.getElementById('hint-dismiss').addEventListener('click', function(){
+  document.getElementById('fullscreen-hint').style.display = 'none';
+});
+</script>
+{% endblock %}

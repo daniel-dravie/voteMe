@@ -1,0 +1,62 @@
+z{% extends "base.html" %}
+{% block title %}Voter Kiosk Control{% endblock %}
+
+{% block content %}
+<h3>Voter Kiosk</h3>
+<p>Current kiosk status: <strong>{{ 'Open' if election.device_open else 'Closed' }}</strong></p>
+
+<form method="POST" style="margin-top:16px">
+    {% if not election.device_open %}
+    <div class="floating-label">
+        <input type="password" name="device_password" placeholder=" " required>
+        <label>Device Password</label>
+    </div>
+    <button class="btn" type="submit" name="action" value="open">Open Kiosk</button>
+    {% else %}
+    <button class="btn" type="submit" name="action" value="close">Close Kiosk</button>
+    {% endif %}
+</form>
+
+<p style="margin-top:12px">When kiosk is open, voters can visit <code>/vote</code> and enter their index number only to vote.</p>
+
+<div style="margin-top:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+  <a class="btn" href="{{ url_for('now_serving') }}" target="_blank" rel="noopener">Open Now Serving (new tab)</a>
+  <button class="btn" id="open-now-serving-window" type="button">Open Now Serving (popup)</button>
+  <a class="btn" href="{{ url_for('voter_kiosk_login') if false else url_for('public_voter_login') }}" target="_blank" rel="noopener">Open Kiosk Login</a>
+</div>
+
+<script>
+// Open now serving in a focused popup window (attempt fullscreen)
+document.getElementById('open-now-serving-window').addEventListener('click', function(){
+  const url = '{{ url_for('now_serving') }}';
+  // open sized to available screen first
+  const w = window.open(url, 'nowServing', `toolbar=0,location=0,status=0,menubar=0,scrollbars=0,resizable=1,left=0,top=0,width=${screen.availWidth},height=${screen.availHeight}`);
+  // Try to request fullscreen on the popup (may be blocked by browser if not allowed)
+  try{
+    // Wait until the popup is loaded then request fullscreen
+    const tryFullscreen = () => {
+      try{
+        if (w && w.document && w.document.documentElement){
+          // request fullscreen on popup's document element
+          w.document.documentElement.requestFullscreen?.();
+        }
+      }catch(e){
+        // ignore cross-window or permission errors
+      }
+    };
+    // Some browsers may load synchronously, others asynchronously
+    if (w){
+      if (w.document && w.document.readyState === 'complete'){
+        tryFullscreen();
+      } else {
+        w.addEventListener && w.addEventListener('load', tryFullscreen);
+        setTimeout(tryFullscreen, 500);
+      }
+    }
+  }catch(e){
+    // ignore and rely on window sizing
+  }
+});
+</script>
+
+{% endblock %}

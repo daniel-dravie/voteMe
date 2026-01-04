@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Classes{% endblock %}
+
+{% block content %}
+<h2>Manage Classes</h2>
+
+<!-- Add Class Form -->
+<div class="form-container">
+    <form method="POST">
+        <div class="floating-label">
+            <input type="text" name="name" placeholder=" " required>
+            <label>Class Name</label>
+        </div>
+        <div class="floating-label">
+            <input type="number" name="year" placeholder=" " required>
+            <label>Year</label>
+        </div>
+        <button type="submit">Add Class</button>
+    </form>
+</div> 
+
+<hr>
+
+<!-- List of Classes -->
+<h3>Existing Classes</h3>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Class Name</th>
+            <th>Year</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in classes %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ c.name }}</td>
+            <td>{{ c.year }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="3">No classes found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

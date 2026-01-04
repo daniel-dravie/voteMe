@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Student{% endblock %}
+
+{% block content %}
+<h2>Edit Student</h2>
+<form method="POST">
+    <div class="floating-label">
+        <input type="text" id="name" name="name" placeholder=" " value="{{ student.name }}" required>
+        <label for="name">Full Name</label>
+    </div>
+
+    <div class="floating-label">
+        <select id="sex" name="sex" required>
+            <option value="" disabled>Select sex</option>
+            <option value="Male" {% if student.sex == 'Male' %}selected{% endif %}>Male</option>
+            <option value="Female" {% if student.sex == 'Female' %}selected{% endif %}>Female</option>
+            <option value="Other" {% if student.sex not in ['Male','Female'] %}selected{% endif %}>Other</option>
+        </select>
+        <label for="sex">Sex</label>
+    </div>
+
+    <div class="floating-label">
+        <select id="class_id" name="class_id">
+            <option value="" disabled>Select class</option>
+            {% for c in classes %}
+            <option value="{{ c.id }}" {% if student.class_id == c.id %}selected{% endif %}>{{ c.year }} - {{ c.name }}</option>
+            {% endfor %}
+        </select>
+        <label for="class_id">Class</label>
+    </div>
+
+    <button type="submit">Save Changes</button>
+    <a href="{{ url_for('view_students') }}" class="btn-secondary">Cancel</a>
+</form>
+{% endblock %}

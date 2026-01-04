@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Add Student{% endblock %}
+
+{% block content %}
+<h2>Add Student</h2>
+<form method="POST">
+    <div class="floating-label">
+        <input type="text" id="name" name="name" placeholder=" " required>
+        <label for="name">Full Name</label>
+    </div>
+
+    <div class="floating-label">
+        <select id="sex" name="sex" required>
+            <option value="" disabled selected hidden>Select sex</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+        </select>
+        <label for="sex">Sex</label>
+    </div>
+
+    <div class="floating-label">
+        <select id="class_id" name="class_id" required>
+            <option value="" disabled selected hidden>Select class</option>
+            {% for c in classes %}
+            <option value="{{ c.id }}">{{ c.year }} - {{ c.name }}</option>
+            {% endfor %}
+        </select>
+        <label for="class_id">Class</label>
+    </div>
+
+    <button type="submit">Add Student</button>
+    <a href="{{ url_for('view_students') }}" class="btn-secondary">Cancel</a>
+</form>
+{% endblock %}

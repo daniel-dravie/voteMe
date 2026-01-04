@@ -1,0 +1,114 @@
+
+{% extends "base.html" %}
+{% block title %}Election Results{% endblock %}
+
+{% block content %}
+
+
+<h2>Election Results</h2>
+
+<div class="results-filter">
+  <form method="get" action="{{ url_for('view_results') }}">
+    <label for="portfolio-select">Select portfolio:</label>
+    <select name="portfolio_id" id="portfolio-select">
+      <option value="">-- choose portfolio --</option>
+      {% for p in portfolios %}
+        <option value="{{ p.id }}" {% if selected_portfolio_id == p.id %}selected{% endif %}>
+          {{ p.name }}
+        </option>
+      {% endfor %}
+    </select>
+    <button type="submit">View</button>
+  </form>
+</div>
+
+<div id="results-section" class="{% if not selected_portfolio %}results-hidden{% endif %}">
+  {% if selected_portfolio %}
+    <h3 class="results-portfolio-title">{{ selected_portfolio.name }}</h3>
+
+    {% if selected_portfolio.candidates %}
+      <div class="results-grid">
+        {% for candidate in selected_portfolio.candidates %}
+          <div class="result-card {% if candidate.id in winner_ids %}winner{% endif %}">
+            <div class="result-photo-wrap">
+              {% if candidate.photo %}
+                <img
+                  src="{{ url_for('static', filename='uploads/' ~ candidate.photo) }}"
+                  alt="{{ candidate.user.name if candidate.user else 'Candidate photo' }}"
+                  class="result-photo"
+                  data-votes="{{ candidate.votes }}"
+                >
+              {% else %}
+                <div class="result-photo placeholder">
+                  No photo
+                </div>
+              {% endif %}
+            </div>
+            <div class="result-meta">
+              <div class="candidate-name">
+                {{ candidate.user.name if candidate.user else 'N/A' }}
+              </div>
+              <div class="candidate-class">
+                {{ candidate.classroom.name if candidate.classroom else 'N/A' }}
+              </div>
+              <div class="candidate-votes">
+                Votes: {{ candidate.votes }}
+              </div>
+              <div class="candidate-status">
+                {% if candidate.id in winner_ids %}
+                  <strong>Winner</strong>
+                {% else %}
+                  -
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      {% if winner_ids %}
+        <button id="show-winner-btn" class = 'show-winner-btn' type="button">Show winner</button>
+      {% endif %}
+    {% else %}
+      <p>No candidates registered for this portfolio.</p>
+    {% endif %}
+  {% else %}
+    <p>Please select a portfolio to view its results.</p>
+  {% endif %}
+</div>
+
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const showWinnerBtn = document.getElementById("show-winner-btn");
+    if (!showWinnerBtn) return;
+
+    showWinnerBtn.addEventListener("click", function () {
+      const cards = document.querySelectorAll(".result-card");
+      if (!cards.length) return;
+
+      // Clear any previous states
+      cards.forEach(card => {
+        card.classList.remove("winner-active");
+        card.classList.remove("loser-active");
+      });
+
+      // Mark winners and losers
+      cards.forEach(card => {
+        if (card.classList.contains("winner")) {
+          card.classList.add("winner-active");
+        } else {
+          card.classList.add("loser-active");
+        }
+      });
+
+      // Scroll first winner into view
+      const firstWinner = document.querySelector(".result-card.winner-active");
+      if (firstWinner) {
+        firstWinner.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+  });
+</script>
+{% endblock %}
+

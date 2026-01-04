@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Voter Login{% endblock %}
+{% set show_navbar = false %}
+
+{% block content %}
+<div class="login-box">
+    <h2>Voter Login</h2>
+    <p>Please enter your Index Number to vote</p>
+    <form method="POST">
+        <div class="floating-label">
+            <input type="text" name="index_number" placeholder=" " required>
+            <label>Index Number</label>
+        </div>
+        <button type="submit">Proceed to Vote</button>
+    </form>
+</div>
+{% endblock %}

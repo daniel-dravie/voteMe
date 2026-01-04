@@ -1,0 +1,205 @@
+
+{% extends "base.html" %}
+
+
+{% block title %}Manage Students{% endblock %}
+
+{% block content %}
+
+<h3>Add Student</h3>
+<a href="{{ url_for('add_student') }}" class="btn">Add Individual Student</a>
+
+<h3>Upload Students in Bulk</h3>
+<form id="download-sample-form" method="GET" action="{{ url_for('download_students_sample') }}" class="students-sample-form">
+    <div class="floating-label">
+        <select name="year" id="sample-year" required>
+            <option value="" disabled selected hidden>Select year</option>
+            {% for c in classes|unique(attribute='year') %}
+            <option value="{{ c.year }}">{{ c.year }}</option>
+            {% endfor %}
+        </select>
+        <label>Year for Sample</label>
+    </div>
+    <div class="floating-label">
+        <select name="class_id" id="sample-class" required disabled>
+            <option value="" disabled selected hidden>Select class</option>
+            {% for c in classes %}
+            <option value="{{ c.id }}">{{ c.year }} - {{ c.name }}</option>
+            {% endfor %}
+        </select>
+        <label>Class for Sample</label>
+    </div>
+    <button type="submit" class="btn" id="download-sample-btn" disabled>Download sample Excel</button>
+</form>
+
+<form method="POST" enctype="multipart/form-data" action="{{ url_for('upload_students') }}">
+    <div class="floating-label">
+        <select name="class_id" required>
+            <option value="" disabled selected hidden>Select class</option>
+            {% for c in classes %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+            {% endfor %}
+        </select>
+        <label>Class</label>
+    </div>
+    <div class="floating-label">
+        <input type="file" name="file" accept=".xlsx,.xls" required>
+        <label>Excel file (.xlsx/.xls)</label>
+    </div>
+    <button type="submit" class="btn">Upload</button>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const yearSelect = document.getElementById('sample-year');
+  const classSelect = document.getElementById('sample-class');
+  const downloadBtn = document.getElementById('download-sample-btn');
+  const allOptions = Array.from(classSelect.querySelectorAll('option'));
+
+  yearSelect.addEventListener('change', function(){
+    const year = yearSelect.value;
+    // rebuild class options filtered by year
+    classSelect.innerHTML = '<option value="" disabled selected hidden>Select class</option>';
+    allOptions.forEach(opt => {
+      if(opt.value === '') return; // skip placeholder
+      if(opt.textContent.trim().startsWith(year + ' -')){
+        classSelect.appendChild(opt.cloneNode(true));
+      }
+    });
+    classSelect.disabled = !year;
+    downloadBtn.disabled = !(year && classSelect.value);
+  });
+
+  classSelect.addEventListener('change', function(){
+    downloadBtn.disabled = !(yearSelect.value && classSelect.value);
+  });
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('student-search-input');
+    const tableRows = document.querySelectorAll('#students-table tbody tr');
+    const noResultsMsg = document.getElementById('no-students-message');
+
+    searchInput.addEventListener('keyup', function () {
+        const searchValue = this.value.toLowerCase().trim();
+        let visibleCount = 0;
+
+        tableRows.forEach(row => {
+            const indexNumber = row.querySelector('.col-index')?.textContent.toLowerCase() || '';
+            const name = row.querySelector('.col-name')?.textContent.toLowerCase() || '';
+            const className = row.querySelector('.col-class')?.textContent.toLowerCase() || '';
+
+            const match =
+                indexNumber.includes(searchValue) ||
+                name.includes(searchValue) ||
+                className.includes(searchValue);
+
+            row.style.display = match ? '' : 'none';
+            if (match) visibleCount++;
+        });
+
+        noResultsMsg.style.display = visibleCount === 0 ? 'block' : 'none';
+    });
+});
+</script>
+
+<h3>Search Students</h3>
+
+<div class="students-search-bar">
+    <input
+        type="text"
+        id="student-search-input"
+        placeholder="Search Student by index number, name, or class..."
+        class="students-search-input"
+    >
+</div>
+<p id="no-students-message" class="students-no-results">
+   No students found
+</p>
+
+<h3>Students List</h3>
+<div class="students-export-bar">
+    <form method="GET" action="{{ url_for('export_students') }}">
+        <button type="submit" class="btn">
+            Download all students List  (Excel)
+        </button>
+    </form>
+</div>
+
+<!-- Hidden class options for modal population -->
+<select id="class-options" class="hidden-select">
+    <option value="">None</option>
+    {% for c in classes %}
+    <option value="{{ c.id }}">{{ c.year }} - {{ c.name }}</option>
+    {% endfor %}
+</select>
+
+<div class="table-responsive">
+<table id="students-table" class="data-table">
+    <thead>
+        <tr>
+            <th>Index Number</th>
+            <th>Name</th>
+            <th>Sex</th>
+            <th>Class</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for student in students %}
+        <tr data-student-id="{{ student.id }}">
+            <td class="col-index">{{ student.index_number }}</td>
+            <td class="col-name">{{ student.name }}</td>
+            <td class="col-sex">{{ student.sex }}</td>
+            <td class="col-class">{{ student.classroom.name if student.classroom else 'N/A' }}</td>
+            <td class="col-actions">
+                <button class="btn-secondary" onclick='openStudentModal({{ student.id }}, {{ student.name|tojson }}, "{{ student.sex }}", "{{ student.class_id if student.class_id else '' }}")'>Edit</button>
+                <button class="btn-secondary" onclick="softDeleteStudent({{ student.id }}, this)">Delete</button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<!-- Student Edit Modal -->
+<div id="student-modal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Edit Student</h3>
+            <button class="modal-close" onclick="closeModal('student-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <form id="student-modal-form">
+                <div class="floating-label">
+                    <input type="text" name="name" id="modal-student-name" placeholder=" " required>
+                    <label for="modal-student-name">Full Name</label>
+                </div>
+                <div class="floating-label">
+                    <select name="sex" id="modal-student-sex" required>
+                        <option value="">Select sex</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <label for="modal-student-sex">Sex</label>
+                </div>
+                <div class="floating-label">
+                    <select name="class_id" id="modal-student-class">
+                        <!-- options populated dynamically from #class-options -->
+                    </select>
+                    <label for="modal-student-class">Class</label>
+                </div>
+            </form>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal('student-modal')">Cancel</button>
+            <button class="btn" onclick="submitStudentModal()">Save</button>
+        </div>
+    </div>
+</div> 
+
+{% endblock %}
+

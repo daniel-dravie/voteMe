@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Portfolios{% endblock %}
+
+{% block content %}
+<h2>Manage Portfolios</h2>
+
+<!-- Add Portfolio Form -->
+<div class="form-container">
+    <form method="POST">
+        <div class="floating-label">
+            <input type="text" name="name" placeholder=" " required>
+            <label>Portfolio Name</label>
+        </div>
+        <button type="submit">Add Portfolio</button>
+    </form>
+</div>
+
+<hr>
+
+<!-- List of Portfolios -->
+<h3>Existing Portfolios</h3>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Name</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in portfolios %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ p.name }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="2">No portfolios found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table> 
+{% endblock %}

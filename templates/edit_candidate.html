@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Candidate{% endblock %}
+
+{% block content %}
+<h2>Edit Candidate</h2>
+<form method="POST" enctype="multipart/form-data">
+    <p><strong>Voter:</strong> {{ candidate.user.name }}</p>
+    <div class="floating-label">
+        <select name="portfolio_id" required>
+            <option value="" disabled>Select portfolio</option>
+            {% for p in portfolios %}
+            <option value="{{ p.id }}" {% if candidate.portfolio_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+        </select>
+        <label>Portfolio</label>
+    </div>
+
+    <div class="floating-label">
+        <input type="file" name="photo" accept="image/*">
+        <label>Change Photo (optional)</label>
+    </div>
+
+    <button type="submit">Save Changes</button>
+    <a href="{{ url_for('view_candidates') }}" class="btn-secondary">Cancel</a>
+</form>
+{% endblock %}

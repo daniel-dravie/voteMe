@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Election{% endblock %}
+
+{% block content %}
+<h2>Election Settings</h2>
+
+{% if election %}
+<p><strong>Status:</strong> {{ 'Active' if election.is_active else 'Inactive' }}</p>
+<p><strong>Start Time:</strong> {{ election.start_time or 'Not set' }}</p>
+<p><strong>End Time:</strong> {{ election.end_time or 'Not set' }}</p>
+<p><strong>Device Password:</strong> {{ election.device_password or 'Not set' }}</p>
+{% else %}
+<p>No election settings yet.</p>
+{% endif %}
+
+<hr>
+
+<h3>Update Election</h3>
+<form method="POST">
+    <div class="floating-label">
+        <input type="datetime-local" name="start_time" id="start_time" value="{{ election.start_time|default('') if election else '' }}" placeholder=" ">
+        <label for="start_time">Start Time</label>
+    </div>
+
+    <div class="floating-label">
+        <input type="datetime-local" name="end_time" id="end_time" value="{{ election.end_time|default('') if election else '' }}" placeholder=" ">
+        <label for="end_time">End Time</label>
+    </div>
+
+    <div class="floating-label">
+        <input type="text" name="device_password" id="device_password" value="{{ election.device_password if election else '' }}" placeholder=" ">
+        <label for="device_password">Device Password</label>
+    </div>
+
+    <div style="margin:12px 0;">
+        <label style="display:flex;align-items:center;gap:10px;">
+            <input type="checkbox" name="is_active" {% if election and election.is_active %}checked{% endif %}>
+            Activate Election
+        </label>
+    </div>
+
+    <button type="submit">Save Settings</button>
+</form>
+{% endblock %}

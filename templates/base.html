@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}e-Voting{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0; padding: 0;
+            background: #f5f5f5;
+        }
+        .navbar {
+            background: #3a1801ff;
+            padding: 10px;
+            text-align: center;
+        }
+        .navbar a {
+            color: #fff;
+            margin: 0 15px;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .container {
+            padding: 20px;
+            max-width: 1000px;
+            margin: auto;
+        }
+        .flash-messages .alert {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .alert-success { background-color: #d4edda; color: #155724; }
+        .alert-danger { background-color: #f8d7da; color: #721c24; }
+        .alert-warning { background-color: #fff3cd; color: #856404; }
+        .alert-info { background-color: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    {% if show_navbar is not defined or show_navbar %}
+        {% if session.get('role') == 'admin' %}
+        <!-- ADMIN NAVBAR -->
+        <nav class="navbar">
+            <a href="{{ url_for('admindashboard') }}">Dashboard</a>
+            <a href="{{ url_for('student_classes') }}">Classes</a>
+            <a href="{{ url_for('portfolios') }}">Portfolios</a>
+            <a href="{{ url_for('view_candidates') }}">Candidates</a>
+            <a href="{{ url_for('view_students') }}">Students</a>
+
+            <a href="{{ url_for('election') }}">Election</a>
+            <a href="{{ url_for('view_results') }}">Results</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </nav>
+        {% endif %}
+    {% endif %}
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, msg in messages %}
+                        <div class="alert alert-{{ category }}">{{ msg }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        // Floating label helper: add .has-value where inputs/selects have a value
+        document.addEventListener('DOMContentLoaded', function() {
+            function checkAndToggle(el) {
+                var wrapper = el.closest('.floating-label');
+                if (!wrapper) return;
+                var val = el.value;
+                if ((el.tagName === 'SELECT' && el.selectedIndex > 0) || (val && val.trim() !== '')) {
+                    wrapper.classList.add('has-value');
+                } else {
+                    wrapper.classList.remove('has-value');
+                }
+            }
+
+            document.querySelectorAll('.floating-label input, .floating-label textarea, .floating-label select').forEach(function(el) {
+                checkAndToggle(el);
+                el.addEventListener('change', function() { checkAndToggle(el); });
+                el.addEventListener('input', function() { checkAndToggle(el); });
+            });
+
+            // Modal helpers for inline edit
+            window.openStudentModal = function(id, name, sex, class_id) {
+                var overlay = document.getElementById('student-modal');
+                document.getElementById('modal-student-name').value = name || '';
+                document.getElementById('modal-student-sex').value = sex || '';
+
+                // populate class options
+                var source = document.getElementById('class-options');
+                var target = document.getElementById('modal-student-class');
+                target.innerHTML = source.innerHTML;
+                target.value = class_id || '';
+
+                // toggle floating label classes
+                document.querySelectorAll('#student-modal .floating-label input, #student-modal .floating-label select').forEach(function(el){
+                    var ev = new Event('input'); el.dispatchEvent(ev);
+                });
+
+                overlay.classList.add('show');
+                overlay.dataset.studentId = id;
+            }
+
+            window.openCandidateModal = function(id, name, portfolio_id) {
+                var overlay = document.getElementById('candidate-modal');
+                document.getElementById('modal-candidate-name').textContent = name || '';
+
+                var source = document.getElementById('portfolio-options');
+                var target = document.getElementById('modal-candidate-portfolio');
+                target.innerHTML = source.innerHTML;
+                target.value = portfolio_id || '';
+
+                // toggle floating label classes
+                document.querySelectorAll('#candidate-modal .floating-label select').forEach(function(el){
+                    var ev = new Event('change'); el.dispatchEvent(ev);
+                });
+
+                overlay.classList.add('show');
+                overlay.dataset.candidateId = id;
+            }
+
+            window.closeModal = function(modalId) {
+                var overlay = document.getElementById(modalId);
+                if (overlay) overlay.classList.remove('show');
+            }
+
+            window.submitStudentModal = function() {
+                var overlay = document.getElementById('student-modal');
+                var id = overlay.dataset.studentId;
+                var name = document.getElementById('modal-student-name').value;
+                var sex = document.getElementById('modal-student-sex').value;
+                var class_id = document.getElementById('modal-student-class').value;
+
+                fetch('/admin/students/' + id + '/api', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, sex: sex, class_id: class_id })
+                }).then(r => r.json()).then(json => {
+                    if (json.success) {
+                        // update row
+                        var row = document.querySelector('tr[data-student-id="' + id + '"]');
+                        if (row) {
+                            row.querySelector('.col-name').textContent = json.student.name;
+                            row.querySelector('.col-sex').textContent = json.student.sex;
+                            row.querySelector('.col-class').textContent = json.student.class || 'N/A';
+                        }
+                        closeModal('student-modal');
+                    } else {
+                        alert('Update failed');
+                    }
+                }).catch(()=>{ alert('Request failed'); });
+            }
+
+            window.submitCandidateModal = function() {
+                var overlay = document.getElementById('candidate-modal');
+                var id = overlay.dataset.candidateId;
+                var portfolio_id = document.getElementById('modal-candidate-portfolio').value;
+
+                fetch('/admin/candidates/' + id + '/api', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ portfolio_id: portfolio_id })
+                }).then(r => r.json()).then(json => {
+                    if (json.success) {
+                        var row = document.querySelector('tr[data-candidate-id="' + id + '"]');
+                        if (row) {
+                            row.querySelector('.col-portfolio').textContent = json.candidate.portfolio || 'N/A';
+                        }
+                        closeModal('candidate-modal');
+                    } else {
+                        alert('Update failed');
+                    }
+                }).catch(()=>{ alert('Request failed'); });
+            }
+
+            // Stacked undo snackbars
+            window.createUndoItem = function(opts) {
+                // opts: { message, undoUrl, timeoutMs (optional), onUndo (optional) }
+                var container = document.getElementById('undo-container');
+                if (!container) return;
+                var item = document.createElement('div');
+                item.className = 'undo-item';
+                item.innerHTML = '<div class="undo-msg">' + (opts.message || 'Deleted') + '</div>' +
+                                 '<div class="undo-actions"><button class="undo-btn">Undo</button><button class="dismiss-btn">Dismiss</button></div>';
+                container.appendChild(item);
+                var undoBtn = item.querySelector('.undo-btn');
+                var dismissBtn = item.querySelector('.dismiss-btn');
+                var timeoutMs = opts.timeoutMs || 8000;
+                var tid = setTimeout(function(){ if (item.parentNode) item.parentNode.removeChild(item); }, timeoutMs);
+
+                undoBtn.onclick = function(){
+                    clearTimeout(tid);
+                    fetch(opts.undoUrl, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r=>r.json()).then(j=>{
+                        if (j.success) {
+                            if (typeof opts.onUndo === 'function') opts.onUndo(j);
+                        }
+                    }).catch(function(){ alert('Undo failed'); }).finally(function(){ if (item.parentNode) item.parentNode.removeChild(item); });
+                };
+
+                dismissBtn.onclick = function(){ clearTimeout(tid); if (item.parentNode) item.parentNode.removeChild(item); };
+            }
+
+            window.softDeleteStudent = function(id, btn) {
+                if (!confirm('Delete this student?')) return;
+                fetch('/admin/students/' + id + '/delete', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json()).then(json => {
+                    if (json.success) {
+                        var row = document.querySelector('tr[data-student-id="' + id + '"]');
+                        if (row) row.style.opacity = '0.5';
+                        // create an undo item
+                        createUndoItem({
+                            message: 'Student deleted',
+                            undoUrl: '/admin/students/' + id + '/undo',
+                            onUndo: function(){ if (row) row.style.opacity = '1'; }
+                        });
+                    }
+                }).catch(()=> alert('Delete failed'));
+            }
+
+            window.softDeleteCandidate = function(id, btn) {
+                if (!confirm('Delete this candidate?')) return;
+                fetch('/admin/candidates/' + id + '/delete', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json()).then(json => {
+                    if (json.success) {
+                        var row = document.querySelector('tr[data-candidate-id="' + id + '"]');
+                        if (row) row.style.opacity = '0.5';
+                        createUndoItem({
+                            message: 'Candidate deleted',
+                            undoUrl: '/admin/candidates/' + id + '/undo',
+                            onUndo: function(){ if (row) row.style.opacity = '1'; }
+                        });
+                    }
+                }).catch(()=> alert('Delete failed'));
+            }
+        });
+    </script>
+
+    <!-- Undo container for stacked snackbars -->
+    <div id="undo-container" aria-live="polite" aria-atomic="true"></div>
+
+</body>
+</html>
