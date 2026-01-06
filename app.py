@@ -261,6 +261,31 @@ def view_students():
         selected_class=selected_class,
         selected_year=selected_year,
     )
+    if session.get("role") != "admin":
+        return redirect(url_for("login"))
+
+    classes = Class.query.order_by(Class.year, Class.name).all()
+    selected_class = request.args.get("class_id")
+    selected_year = request.args.get("year")
+
+    # Base query: only voters and not soft-deleted
+    query = User.query.filter_by(role="voter", is_deleted=False)
+
+    if selected_class:
+        query = query.filter_by(class_id=selected_class)
+    if selected_year:
+        class_ids = [c.id for c in Class.query.filter_by(year=selected_year).all()]
+        query = query.filter(User.class_id.in_(class_ids))
+
+    students = query.order_by(User.index_number).all()
+
+    return render_template(
+        "students.html",
+        students=students,
+        classes=classes,
+        selected_class=selected_class,
+        selected_year=selected_year,
+    )
 
 
 @app.route("/admin/students/add", methods=["GET", "POST"])
@@ -905,6 +930,83 @@ def submit_vote():
 
     # Loop through form data to get selected candidates
     for key, value in request.form.items():
+        if not key.startswith("portfolio_"):
+            continue
+
+        value = (value or "").strip()
+        if not value:
+            # nothing selected for this portfolio -> skipped
+            continue
+
+        # Single-candidate YES/NO case
+        if value.startswith("yes_"):
+            # expected format: yes_<candidate_id>
+            parts = value.split("_", 1)
+            if len(parts) == 2:
+                try:
+                    candidate_id = int(parts[1])
+                except ValueError:
+                    continue
+                vote = Vote(voter_id=voter.id, candidate_id=candidate_id)
+                db.session.add(vote)
+            continue
+
+        if value == "no":
+            # explicit NO -> skipped (no record)
+            continue
+
+        # Multi-candidate portfolio: value should be candidate_id
+        try:
+            candidate_id = int(value)
+        except ValueError:
+            continue  # ignore invalid values
+
+        vote = Vote(voter_id=voter.id, candidate_id=candidate_id)
+        db.session.add(vote)
+
+    # Mark voter as voted (even if they skipped some or all portfolios)
+    voter.voted = True
+    db.session.commit()
+
+    flash("Your vote has been submitted successfully!", "success")
+    # only remove voter session data; keep device authentication active so the next voter can vote without re-authenticating
+    session.pop('voter_id', None)
+    # After voting at a kiosk, return to the kiosk login so the next voter can enter their index number
+    return redirect(url_for("public_voter_login"))
+    if "voter_id" not in session:
+        flash("Please login first", "warning")
+        return redirect(url_for("login"))
+
+    voter = User.query.get(session["voter_id"])
+
+    # Loop through form data to get selected candidates
+    for key, value in request.form.items():
+        if not key.startswith("portfolio_"):
+            continue
+
+        if value == "skip" or value.strip() == "":
+            # user explicitly skipped this portfolio; no vote record created
+            continue
+
+        try:
+            candidate_id = int(value)
+        except ValueError:
+            continue  # ignore invalid values
+
+        vote = Vote(voter_id=voter.id, candidate_id=candidate_id)
+        db.session.add(vote)
+
+    # Mark voter as voted (even if they skipped some portfolios)
+    voter.voted = True
+    db.session.commit()
+    if "voter_id" not in session:
+        flash("Please login first", "warning")
+        return redirect(url_for("login"))
+
+    voter = User.query.get(session["voter_id"])
+
+    # Loop through form data to get selected candidates
+    for key, value in request.form.items():
         if key.startswith("portfolio_"):  # e.g., portfolio_1 = candidate_id
             candidate_id = int(value)
             vote = Vote(voter_id=voter.id, candidate_id=candidate_id)
@@ -1088,6 +1190,106 @@ def admin_voter_kiosk():
 
 @app.route("/students/export")
 def export_students():
+    # Restrict to admin
+    if session.get("role") != "admin":
+        return redirect(url_for("login"))
+
+    # Export all non-deleted voters (students)
+    students = (
+        User.query.filter_by(role="voter", is_deleted=False)
+        .order_by(User.index_number)
+        .all()
+    )
+
+    data = []
+    for s in students:
+        data.append(
+            {
+                "Index Number": s.index_number,
+                "Name": s.name,
+                "Class": s.classroom.name if s.classroom else "N/A",
+                "Voted": "Yes" if s.voted else "No",
+            }
+        )
+
+    if not data:
+        # still provide headers even if empty
+        data.append({"Index Number": "", "Name": "", "Class": "", "Voted": ""})
+
+    df = pd.DataFrame(data)
+
+    output = BytesIO()
+    try:
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Students")
+        output.seek(0)
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="students_list.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception:
+        # fallback to CSV if Excel engine not available
+        output = BytesIO()
+        df.to_csv(output, index=False)
+        output.seek(0)
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="students_list.csv",
+            mimetype="text/csv",
+        )
+    # optionally restrict to admin:
+    if session.get("role") != "admin":
+        return redirect(url_for("login"))
+
+    # Export all non-deleted voters (students)
+    students = (
+        User.query.filter_by(role="voter", is_deleted=False)
+        .order_by(User.index_number)
+        .all()
+    )
+
+    data = []
+    for s in students:
+        data.append(
+            {
+                "Index Number": s.index_number,
+                "Name": s.name,
+                "Class": s.classroom.name if s.classroom else "N/A",
+                "Voted": "Yes" if s.voted else "No",
+            }
+        )
+
+    if not data:
+        # still provide headers even if empty
+        data.append({"Index Number": "", "Name": "", "Class": "", "Voted": ""})
+
+    df = pd.DataFrame(data)
+
+    output = BytesIO()
+    try:
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Students")
+        output.seek(0)
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="students_list.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception:
+        # fallback to CSV if Excel engine not available
+        output = BytesIO()
+        df.to_csv(output, index=False)
+        output.seek(0)
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="students_list.csv",
+            mimetype="text/csv",
+        )
     # You can restrict to admin if you want:
     # if session.get("role") != "admin":
     #     return redirect(url_for("login"))
@@ -1208,7 +1410,41 @@ def now_serving_status():
 
     return jsonify({'total': total, 'voted': voted, 'remaining': remaining, 'last_voter': last_voter})
 
+@app.route('/live_votes')
+def live_votes():
+    total = User.query.filter_by(role='voter', is_deleted=False).count()
+    voted = User.query.filter_by(role='voter', is_deleted=False, voted=True).count()
+    remaining = total - voted
+    # hide navbar on live votes screen
+    return render_template('live_votes.html',
+                           total=total,
+                           voted=voted,
+                           remaining=remaining,
+                           show_navbar=False)
 
+@app.route('/live_votes/status')
+def live_votes_status():
+    total = User.query.filter_by(role='voter', is_deleted=False).count()
+    voted = User.query.filter_by(role='voter', is_deleted=False, voted=True).count()
+    remaining = total - voted
+    return jsonify({'total': total, 'voted': voted, 'remaining': remaining})
+
+
+@app.route("/admin/reset_votes", methods=["POST"])
+def reset_votes():
+    """Reset voting process: clear all votes and reset voters' voted flag."""
+    if session.get("role") != "admin":
+        return redirect(url_for("login"))
+
+    # Reset all voters' voted flag
+    User.query.filter_by(role="voter").update({User.voted: False})
+
+    # Delete all votes
+    Vote.query.delete()
+
+    db.session.commit()
+    flash("All votes and voter statuses have been reset.", "success")
+    return redirect(url_for("view_students"))
 # ---------------- APP STARTUP & DB MIGRATION ----------------
 if __name__ == "__main__":
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)

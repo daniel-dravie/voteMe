@@ -1,9 +1,8 @@
-
+<<<<<<< SEARCH
 {% extends "base.html" %}
 {% block title %}Election Results{% endblock %}
 
 {% block content %}
-
 
 <h2>Election Results</h2>
 
@@ -27,6 +26,18 @@
     <h3 class="results-portfolio-title">{{ selected_portfolio.name }}</h3>
 
     {% if selected_portfolio.candidates %}
+      <p class="results-summary">
+        Total votes in this portfolio:
+        <strong>{{ portfolio_total_votes }}</strong>
+        {% if skipped_percentage is not none %}
+          &nbsp;|&nbsp; Skipped:
+          <strong>{{ skipped_percentage }}%</strong>
+        {% endif %}
+      </p>
+
+      <!-- Container where the winner group / spotlight card will be injected -->
+      <div id="winner-group-container"></div>
+
       <div class="results-grid">
         {% for candidate in selected_portfolio.candidates %}
           <div class="result-card {% if candidate.id in winner_ids %}winner{% endif %}">
@@ -53,6 +64,9 @@
               </div>
               <div class="candidate-votes">
                 Votes: {{ candidate.votes }}
+                {% if candidate.percentage is defined %}
+                  ({{ '%.1f' % candidate.percentage }}%)
+                {% endif %}
               </div>
               <div class="candidate-status">
                 {% if candidate.id in winner_ids %}
@@ -67,7 +81,9 @@
       </div>
 
       {% if winner_ids %}
-        <button id="show-winner-btn" class = 'show-winner-btn' type="button">Show winner</button>
+        <button id="show-winner-btn" type="button" class="show-winner-btn">
+          Show winner
+        </button>
       {% endif %}
     {% else %}
       <p>No candidates registered for this portfolio.</p>
@@ -77,35 +93,59 @@
   {% endif %}
 </div>
 
-
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const showWinnerBtn = document.getElementById("show-winner-btn");
     if (!showWinnerBtn) return;
 
     showWinnerBtn.addEventListener("click", function () {
-      const cards = document.querySelectorAll(".result-card");
-      if (!cards.length) return;
+      const allCards = document.querySelectorAll(".result-card");
+      const winnerCards = document.querySelectorAll(".result-card.winner");
+      const container = document.getElementById("winner-group-container");
 
-      // Clear any previous states
-      cards.forEach(card => {
-        card.classList.remove("winner-active");
-        card.classList.remove("loser-active");
-      });
+      if (!winnerCards.length || !container) return;
 
-      // Mark winners and losers
-      cards.forEach(card => {
-        if (card.classList.contains("winner")) {
-          card.classList.add("winner-active");
-        } else {
+      // Clear any previous group/spotlight card
+      container.innerHTML = "";
+
+      // Make all non-winners much smaller
+      allCards.forEach(card => {
+        if (!card.classList.contains("winner")) {
           card.classList.add("loser-active");
+        } else {
+          card.classList.remove("loser-active");
         }
       });
 
-      // Scroll first winner into view
-      const firstWinner = document.querySelector(".result-card.winner-active");
-      if (firstWinner) {
-        firstWinner.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (winnerCards.length === 1) {
+        // Single winner: spotlight card, hide original in grid
+        const original = winnerCards[0];
+        const clone = original.cloneNode(true);
+        clone.classList.add("winner-spotlight-card");
+        container.appendChild(clone);
+
+        // Hide the original winner card in the grid
+        original.style.display = "none";
+
+        clone.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        // Multiple winners: group card with all winners side-by-side, hide originals
+        const groupCard = document.createElement("div");
+        groupCard.className = "winner-group-card";
+
+        const inner = document.createElement("div");
+        inner.className = "winner-group-inner";
+
+        winnerCards.forEach(card => {
+          const clone = card.cloneNode(true);
+          inner.appendChild(clone);
+          // hide original card in grid
+          card.style.display = "none";
+        });
+
+        groupCard.appendChild(inner);
+        container.appendChild(groupCard);
+        groupCard.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     });
   });

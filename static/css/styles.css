@@ -5,12 +5,18 @@ body {
   color: #141313;
 }
 
-
-
-/* NAVBAR */
+.container {
+  padding: 30px;
+  padding-top: 80px;  /* space for fixed navbar */
+}
 .navbar {
   background: #939191;
   padding: 15px 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
 }
 
 .navbar ul {
@@ -33,10 +39,7 @@ body {
   color: #cccccc;
 }
 
-/* CONTENT */
-.container {
-  padding: 30px;
-}
+
 
 :root {
   --primary: #3a1801;
@@ -468,28 +471,14 @@ button:hover {
 .candidate-option input {
   margin-right: 8px;
 }
-.candidate-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
+
 .candidate-thumb img {
   width: 64px;
   height: 64px;
   object-fit: cover;
   border-radius: 8px;
 }
-.candidate-thumb.placeholder {
-  width: 64px;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
-  color: #999;
-  border-radius: 8px;
-  font-size: 0.9rem;
-}
+
 .candidate-meta .candidate-name {
   font-weight: 700;
 }
@@ -828,4 +817,382 @@ button:hover {
   border-collapse: separate;
   border-spacing: 0;
   min-width: 800px; /* a bit wider to space out columns */
+}
+
+.hidden-select {
+  display: none;
+}
+
+/* LIVE VOTE MONITOR */
+.live-votes-container {
+  max-width: 1100px;
+  margin: 10px auto 20px;
+}
+.live-votes-title {
+  text-align: center;
+  margin-bottom: 18px;
+}
+.live-votes-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.5fr);
+  gap: 20px;
+}
+.live-votes-numbers {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  gap: 14px;
+}
+
+.live-votes-label {
+  font-size: 0.95rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.live-votes-number {
+ 
+  font-weight: 700;
+  color: var(--primary);
+   font-size: 4rem;
+  font-weight: 700;
+  
+  text-align: center;
+}
+.live-votes-number.big {
+  font-size: 3.4rem; /* very large text for cast / remaining */
+}
+.live-votes-total .live-votes-number {
+  font-size: 2.6rem;
+}
+.live-votes-cast .live-votes-number {
+  color: #1b7a1f;
+}
+.live-votes-remaining .live-votes-number {
+  color: #b0302b;
+}
+.live-votes-chart-card {
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 18px 20px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.live-votes-chart-title {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.live-votes-chart-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lv-pie-bg {
+  fill: none;
+  stroke: #f1f1f1;
+  stroke-width: 6;
+}
+.lv-pie-arc {
+  fill: none;
+  stroke: #1b7a1f;
+  stroke-width: 6;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dasharray 0.3s ease;
+}
+.live-votes-legend {
+  margin-top: 12px;
+  display: flex;
+  gap: 14px;
+  font-size: 0.95rem;
+}
+.lv-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lv-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+.lv-swatch-cast {
+  background: #1b7a1f;
+}
+.lv-swatch-remaining {
+  background: #941a1a;
+}
+
+@media (max-width: 860px) {
+  .live-votes-grid {
+    grid-template-columns: 1fr;
+  }
+  .live-votes-pie {
+    width: 220px;
+    height: 220px;
+  }
+}
+
+.live-votes-card {
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 14px 20px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;   /* center horizontally */
+  justify-content: center; /* center vertically */
+  text-align: center;
+}
+.live-votes-label {
+  font-size: 0.95rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.result-card.winner-active .result-photo {
+  width: 300px;
+  height: 300px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.4);
+  transform: scale(1.02);
+}
+
+/* Winner group card for ties */
+.winner-group-card {
+  margin: 10px 0 20px;
+  padding: 16px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+  border: 2px solid #f7a758;
+}
+.winner-group-inner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+}
+.winner-group-card .result-card {
+  border-color: #f7a758;
+  box-shadow: none;
+}
+
+
+winner-group-card .result-card {
+  border-color: #f7a758;
+  box-shadow: none;
+}
+
+/* Single winner spotlight: fill width and show much bigger */
+.winner-spotlight-card {
+  margin: 10px 0 20px;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+  border: 2px solid #f7a758;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.winner-spotlight-card .result-photo-wrap {
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+}
+.winner-spotlight-card .result-photo {
+  width: 280px;
+  height: 280px;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+}
+.winner-spotlight-card .result-meta .candidate-name {
+  font-size: 1.6rem;
+}
+.winner-spotlight-card .result-meta .candidate-class,
+.winner-spotlight-card .result-meta .candidate-votes,
+.winner-spotlight-card .result-meta .candidate-status {
+  font-size: 1.1rem;
+}
+
+/* When projecting winner, make non‑winners much smaller */
+.result-card.loser-active {
+  transform: scale(0.6);
+  opacity: 0.45;
+}
+.result-card.loser-active .result-photo {
+  width: 50px;
+  height: 50px;
+}
+
+.candidate-thumb img {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+.candidate-thumb.placeholder {
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  color: #999;
+  border-radius: 12px;
+  font-size: 1rem;
+}
+.candidate-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+
+
+
+.candidate-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+
+.candidate-option-large {
+  display: inline-block;
+}
+.candidate-card-large {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.candidate-thumb img {
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+.candidate-thumb.placeholder {
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  color: #999;
+  border-radius: 12px;
+  font-size: 1rem;
+}
+.candidate-name-large {
+  margin-top: 8px;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+/* Skip card styling */
+.skip-card .skip-thumb {
+  background: #f5e0d6;
+  color: #3a1801;
+  font-weight: 700;}
+
+  .voter-dashboard-title {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+/* Smaller button variant for inline actions (like reset votes) */
+.btn-small {
+  display: inline-block;
+  width: auto;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+.btn-small:hover {
+  background: #5b2a10;
+}
+
+.login-box button,
+button {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.portfolio-candidates-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+/* YES / NO options for single-candidate portfolios */
+.yes-no-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-left: 24px;
+}
+.yes-no-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.6rem;         /* big label text */
+  font-weight: 700;
+}
+.yes-no-option input[type="radio"] {
+  width: 28px;
+  height: 28px;
+  accent-color: #3a1801;     /* modern browsers */
+}
+.yes-no-option span {
+  cursor: pointer;
+}
+@media (max-width: 720px) {
+  .yes-no-options {
+    margin-left: 0;
+  }
+}
+
+
+/* LOGIN */
+.login-box {
+  max-width: 540px;
+  margin: 60px auto;
+  padding: 36px;
+  background: linear-gradient(180deg, #ffffff, #fbf7f6);
+  text-align: center;
+  border-radius: 12px;
+  box-shadow: 0 8px 22px var(--card-shadow);
+}
+
+/* Logo placeholder for voter/admin dashboards */
+.logo-placeholder {
+  text-align: center;
+  margin: 10px 0 20px;
+}
+.logo-placeholder img {
+  max-height: 80px;         /* adjust to your real logo */
+  width: auto;
+  display: inline-block;
+}
+.logo-placeholder img {
+  max-height: 80px;
+  width: auto;
+  display: inline-block;
 }

@@ -1,42 +1,101 @@
+
 {% extends "base.html" %}
 {% set show_navbar = false %}
 
 {% block title %}Voting Dashboard{% endblock %}
 
 {% block content %}
-<h2>Welcome to the Voting Platform</h2>
+
+<div class="logo-placeholder">
+    <!-- Replace src with your real logo file when available -->
+    <img src="{{ url_for('static', filename='img/school_logo.png') }}" alt="School Logo">
+</div>
+
+<h2 class="voter-dashboard-title">JUABEN GENERAL ELECTIONS - 2026</h2>
 
 <form method="POST" action="{{ url_for('submit_vote') }}">
     {% for portfolio in portfolios %}
+        {% set visible_candidates = portfolio.candidates | selectattr('is_deleted', 'equalto', False) | list %}
+
+        {% if visible_candidates|length > 0 %}
         <div class="portfolio-section">
             <h3>{{ portfolio.name }}</h3>
-            {% for candidate in portfolio.candidates if not candidate.is_deleted %}
-                <div class="candidate-option">
-                    <input type="radio" 
-                           id="candidate_{{ candidate.id }}" 
-                           name="portfolio_{{ portfolio.id }}" 
-                           value="{{ candidate.id }}" 
-                           required>
-                    <label for="candidate_{{ candidate.id }}">
-                        <div class="candidate-row">
+
+            {% if visible_candidates|length == 1 %}
+                {# Single candidate: show YES / NO #}
+                {% set c = visible_candidates[0] %}
+                <div class="portfolio-candidates-row single-candidate-row">
+                    <div class="candidate-option candidate-option-large">
+                        <div class="candidate-card-large">
                             <div class="candidate-thumb">
-                                {% if candidate.photo %}
-                                <img src="{{ url_for('static', filename='uploads/' ~ candidate.photo) }}" alt="{{ candidate.user.name }}">
+                                {% if c.photo %}
+                                    <img src="{{ url_for('static', filename='uploads/' ~ c.photo) }}"
+                                         alt="{{ c.user.name }}">
                                 {% else %}
-                                <div class="candidate-thumb placeholder">No Photo</div>
+                                    <div class="candidate-thumb placeholder">No Photo</div>
                                 {% endif %}
                             </div>
-                            <div class="candidate-meta">
-                                <div class="candidate-name">{{ candidate.user.name if candidate.user else 'N/A' }}</div>
-                                <div class="candidate-class">{{ candidate.classroom.name if candidate.classroom else 'N/A' }}</div>
+                            <div class="candidate-name-large">
+                                {{ c.user.name if c.user else 'N/A' }}
                             </div>
                         </div>
-                    </label>
+                    </div>
+                    <div class="yes-no-options">
+                        <label class="yes-no-option">
+                            <input
+                                type="radio"
+                                name="portfolio_{{ portfolio.id }}"
+                                value="yes_{{ c.id }}"
+                            >
+                            <span>YES</span>
+                        </label>
+                        <label class="yes-no-option">
+                            <input
+                                type="radio"
+                                name="portfolio_{{ portfolio.id }}"
+                                value="no"
+                            >
+                            <span>NO</span>
+                        </label>
+                    </div>
                 </div>
-            {% endfor %}
+               
+            {% else %}
+                {# Multiple candidates: large cards horizontally, no explicit skip #}
+                <div class="portfolio-candidates-row">
+                    {% for candidate in visible_candidates %}
+                        <div class="candidate-option candidate-option-large">
+                            <input
+                                type="radio"
+                                id="candidate_{{ candidate.id }}"
+                                name="portfolio_{{ portfolio.id }}"
+                                value="{{ candidate.id }}"
+                            >
+                            <label for="candidate_{{ candidate.id }}">
+                                <div class="candidate-card-large">
+                                    <div class="candidate-thumb">
+                                        {% if candidate.photo %}
+                                            <img src="{{ url_for('static', filename='uploads/' ~ candidate.photo) }}"
+                                                 alt="{{ candidate.user.name }}">
+                                        {% else %}
+                                            <div class="candidate-thumb placeholder">No Photo</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="candidate-name-large">
+                                        {{ candidate.user.name if candidate.user else 'N/A' }}
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    {% endfor %}
+                </div>
+                
+            {% endif %}
         </div>
         <hr>
+        {% endif %}
     {% endfor %}
     <button type="submit">Submit Vote</button>
 </form>
 {% endblock %}
+

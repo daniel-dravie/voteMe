@@ -1,0 +1,119 @@
+
+{% extends "base.html" %}
+{% block title %}Live Vote Monitor{% endblock %}
+
+{% block content %}
+<div class="live-votes-container">
+  <h2 class="live-votes-title">Live Vote Monitor</h2>
+
+  <div class="live-votes-grid">
+    <div class="live-votes-numbers">
+      <div class="live-votes-card live-votes-total">
+        <div class="live-votes-label">TOTAL VOTERS</div>
+        <div class="live-votes-number" id="lv-total">{{ total }}</div>
+      </div>
+
+      <div class="live-votes-card live-votes-cast">
+        <div class="live-votes-label">VOTES CAST</div>
+        <div class="live-votes-number big" id="lv-cast">{{ voted }}</div>
+      </div>
+
+      <div class="live-votes-card live-votes-remaining">
+        <div class="live-votes-label">NOT YET CAST</div>
+        <div class="live-votes-number big" id="lv-remaining">{{ remaining }}</div>
+      </div>
+    </div>
+
+    <div class="live-votes-chart-card">
+      <div class="live-votes-chart-title">Votes Cast vs Not Yet Cast</div>
+      <div class="live-votes-chart-wrap">
+        <!-- Simple SVG pie chart (donut) -->
+        <svg viewBox="0 0 42 42" class="live-votes-pie">
+          <!-- Background circle (not yet cast) -->
+          <circle
+            class="lv-pie-bg"
+            cx="21"
+            cy="21"
+            r="15.915"
+          ></circle>
+          <!-- Foreground arc (votes cast) -->
+          <circle
+            class="lv-pie-arc"
+            cx="21"
+            cy="21"
+            r="15.915"
+            stroke-dasharray="0 100"
+            stroke-dashoffset="25"
+          ></circle>
+        </svg>
+        <div class="live-votes-legend">
+          <div class="lv-legend-item">
+            <span class="lv-swatch lv-swatch-cast"></span>
+            <span>Votes Cast</span>
+          </div>
+          <div class="lv-legend-item">
+            <span class="lv-swatch lv-swatch-remaining"></span>
+            <span>Not Yet Cast</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const totalEl = document.getElementById("lv-total");
+  const castEl = document.getElementById("lv-cast");
+  const remainingEl = document.getElementById("lv-remaining");
+  const arc = document.querySelector(".lv-pie-arc");
+
+  function updateDisplay(data) {
+    const total = data.total || 0;
+    const cast = data.voted || 0;
+    const remaining = data.remaining != null ? data.remaining : (total - cast);
+
+    totalEl.textContent = total;
+    castEl.textContent = cast;
+    remainingEl.textContent = remaining;
+
+    // Calculate percentage for pie arc (0–100)
+    let pct = 0;
+    if (total > 0) {
+      pct = Math.min(100, Math.max(0, (cast / total) * 100));
+    }
+
+    // stroke-dasharray "<cast> <remaining>"
+    const arcVal = pct.toFixed(1);
+    const restVal = (100 - pct).toFixed(1);
+    if (arc) {
+      arc.setAttribute("stroke-dasharray", arcVal + " " + restVal);
+    }
+  }
+
+  async function pollStatus() {
+    try {
+      const res = await fetch("{{ url_for('live_votes_status') }}", {
+        headers: { "Cache-Control": "no-cache" },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      updateDisplay(data);
+    } catch (e) {
+      // silently ignore errors; will retry on next interval
+    }
+  }
+
+  // Initial update from server-rendered values
+  updateDisplay({
+    total: parseInt(totalEl.textContent || "0", 10),
+    voted: parseInt(castEl.textContent || "0", 10),
+    remaining: parseInt(remainingEl.textContent || "0", 10),
+  });
+
+  // Poll every 5 seconds
+  setInterval(pollStatus, 5000);
+});
+</script>
+{% endblock %}
+
