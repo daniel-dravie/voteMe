@@ -39,8 +39,6 @@ body {
   color: #cccccc;
 }
 
-
-
 :root {
   --primary: #3a1801;
   --accent: #7a3b12;
@@ -1191,8 +1189,9 @@ button {
   width: auto;
   display: inline-block;
 }
-.logo-placeholder img {
-  max-height: 80px;
-  width: auto;
-  display: inline-block;
+.img-logo img {
+  width: 150px;
+  height: 150px;
+  margin: 0 auto;
+  
 }
