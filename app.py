@@ -508,13 +508,14 @@ def upload_students():
         flash(f"Unable to read uploaded file: {e}", "danger")
         return redirect(url_for("view_students"))
 
-    # Normalize headers and auto-detect common synonyms for validation (e.g. fullname -> name, gender -> sex)
+    # Normalize headers and auto-detect common synonyms for validation
     def _norm(s):
         return "".join(ch for ch in (s or "").lower() if ch.isalnum())
 
     cols = list(df.columns)
     norm_map = {_norm(c): c for c in cols}
 
+    # Only 'name' is required; class is already selected from dropdown
     synonyms = {
         "name": [
             "name",
@@ -530,7 +531,6 @@ def upload_students():
             "lastname",
             "fullnam",
         ],
-        "sex": ["sex", "gender", "g", "genderidentity", "gender identity"],
     }
 
     mapped = {}
@@ -548,17 +548,16 @@ def upload_students():
                 mapped["name"] = c
                 break
 
-    # 'name' is required; 'sex' remains optional
+    # 'name' is required
     if "name" not in mapped:
         detected = ", ".join(cols) if cols else "none"
         flash(
-            f"Uploaded file is missing required column 'name'. Detected columns: {detected}. Expected at minimum: name (sex optional). Make sure your file has a header row with column 'name' (or 'fullname').",
+            f"Uploaded file is missing required column 'name'. Detected columns: {detected}. Your file should have a header row with a 'name' column.",
             "danger",
         )
         return redirect(url_for("view_students"))
 
     name_col = mapped["name"]
-    sex_col = mapped.get("sex")
 
     # Prepare seed based on year prefix
     year_prefix = str(classroom.year)[-2:]
@@ -583,14 +582,13 @@ def upload_students():
         if not name:
             # skip empty rows
             continue
-        sex = row.get(sex_col, "Not set") if sex_col else "Not set"
 
         index_number = str(seed).zfill(6)
 
         student = User(
             index_number=index_number,
             name=name,
-            sex=sex,
+            sex="Not set",
             password="",
             role="voter",
             class_id=class_id,
@@ -634,11 +632,11 @@ def download_students_sample():
         flash("Selected class does not match the chosen year.", "danger")
         return redirect(url_for("view_students"))
 
-    # sample columns must match the upload expectations
+    # sample columns must match the upload expectations (only name is required)
     df = pd.DataFrame(
         [
-            {"name": "Daniel Dravie", "sex": "Male"},
-            {"name": "Daniella Dravie", "sex": "Female"},
+            {"name": "Daniel Dravie"},
+            {"name": "Daniella Dravie"},
         ]
     )
 
@@ -695,8 +693,18 @@ def delete_student(student_id):
         return redirect(url_for("login"))
 
     student = User.query.get_or_404(student_id)
+    # soft-delete student and remove any votes they cast
     student.is_deleted = True
-    db.session.commit()
+    try:
+        # delete Vote rows cast by this voter
+        Vote.query.filter_by(voter_id=student.id).delete(synchronize_session=False)
+        # clear voted flag to keep state consistent for deleted users
+        student.voted = False
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        flash("Failed to delete student votes", "danger")
+        return redirect(url_for("view_students"))
     # if AJAX request, return JSON
     if is_ajax_request():
         return jsonify({"success": True})
@@ -730,8 +738,11 @@ def bulk_delete_students():
             student = User.query.get(student_id)
             if student and not student.is_deleted:
                 student.is_deleted = True
+                # remove any votes cast by this student
+                Vote.query.filter_by(voter_id=student.id).delete(synchronize_session=False)
+                student.voted = False
                 deleted_count += 1
-        
+
         db.session.commit()
         return jsonify({"success": True, "deleted_count": deleted_count})
     except Exception as e:

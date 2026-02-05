@@ -39,6 +39,19 @@
 
 <hr>
 <h3>Registered Candidates</h3>
+
+<div class="students-search-bar">
+    <input
+        type="text"
+        id="candidate-search-input"
+        placeholder="Search Candidate by name, index number, portfolio, or class..."
+        class="students-search-input"
+    >
+</div>
+<p id="no-candidates-message" class="students-no-results">
+    No candidates found
+</p>
+
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
     <!-- Hidden portfolio options for modal population -->
     <select id="portfolio-options" style="display:none">
@@ -158,5 +171,35 @@ function bulkDeleteCandidates() {
         alert('Error deleting candidates');
     });
 }
+
+// Search candidates functionality
+document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('candidate-search-input');
+    const tableRows = document.querySelectorAll('#candidates-table tbody tr');
+    const noResultsMsg = document.getElementById('no-candidates-message');
+
+    searchInput.addEventListener('keyup', function () {
+        const searchValue = this.value.toLowerCase().trim();
+        let visibleCount = 0;
+
+        tableRows.forEach(row => {
+            const indexNumber = row.querySelector('.col-index')?.textContent.toLowerCase() || '';
+            const name = row.querySelector('.col-name')?.textContent.toLowerCase() || '';
+            const portfolio = row.querySelector('.col-portfolio')?.textContent.toLowerCase() || '';
+            const className = row.querySelector('.col-class')?.textContent.toLowerCase() || '';
+
+            const match =
+                indexNumber.includes(searchValue) ||
+                name.includes(searchValue) ||
+                portfolio.includes(searchValue) ||
+                className.includes(searchValue);
+
+            row.style.display = match ? '' : 'none';
+            if (match) visibleCount++;
+        });
+
+        noResultsMsg.style.display = visibleCount === 0 ? 'block' : 'none';
+    });
+});
 </script>
 {% endblock %}

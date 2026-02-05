@@ -240,7 +240,12 @@ button:hover {
   border: 1px solid #ddd;
   border-radius: 8px;
   text-decoration: none;
-  
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.btn-secondary:hover {
+  background: #f0f0f0;
+  color: #2b1a17;
 }
 
 /* responsive tweak */
@@ -461,7 +466,6 @@ button:hover {
   border-bottom: 1px solid #f5f5f5;
   vertical-align: middle;
   color: #222;
- 
 }
 .data-table tbody tr:hover {
   background: rgba(122, 59, 18, 0.03);
@@ -624,17 +628,6 @@ button:hover {
   box-shadow: 0 6px 16px rgba(0,0,0,0.18);
 }
 
-/* When projecting winner, make non‑winners smaller and faded */
-.result-card.loser-active {
-  transform: scale(0.85);
-  
-}
-.result-card.loser-active .result-photo {
-  width: 60px;
-  height: 60px;
-  
-}
-
 /* Active winner highlight when "Show winner" clicked: winner fills area */
 .result-card.winner-active {
   grid-column: 1 / -1;          /* span full width of grid */
@@ -682,7 +675,7 @@ button:hover {
 }
 
 .students-export-bar {
-   margin-bottom: 10px;
+  margin-bottom: 10px;
   display: flex;
   justify-content: flex-start;
 }
