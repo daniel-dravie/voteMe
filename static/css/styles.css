@@ -7,11 +7,11 @@ body {
 
 .container {
   padding: 30px;
-  padding-top: 80px;  /* space for fixed navbar */
+  padding-top: 120px;  /* extra space so content sits well below the fixed navbar */
 }
 .navbar {
   background: #939191;
-  padding: 15px 0;
+  padding: 20px 0; /* increased top/bottom padding so items sit away from top edge */
   position: fixed;
   top: 0;
   left: 0;
@@ -398,6 +398,45 @@ button:hover {
 .table-responsive {
   overflow-x: auto;
   margin-top: 12px;
+}
+
+/* Dashboard header + logo */
+.dashboard-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  margin-bottom: 8px;
+}
+.dashboard-title {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #2b1a17;
+}
+.dashboard-logo {
+  width: 140px;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(17,17,17,0.12);
+  transition: transform 420ms cubic-bezier(.2,.9,.2,1), opacity 420ms ease, filter 420ms ease;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  will-change: transform, opacity;
+}
+.dashboard-logo:hover {
+  transform: translateY(-4px) scale(1.02) rotate(-1deg);
+  filter: saturate(1.08) brightness(1.02);
+}
+
+/* fade-in on load */
+.dashboard-logo.fade-in {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* Data table wrapper */
+.table-wrapper {
   background: #fff;
   border-radius: 8px;
   padding: 8px;
@@ -471,10 +510,21 @@ button:hover {
 }
 
 .candidate-thumb img {
-  width: 64px;
-  height: 64px;
+  width: 140px;
+  height: 140px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: 12px;
+}
+.candidate-thumb.placeholder {
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  color: #999;
+  border-radius: 12px;
+  font-size: 1rem;
 }
 
 .candidate-meta .candidate-name {
@@ -483,25 +533,6 @@ button:hover {
 .candidate-meta .candidate-class {
   color: var(--muted);
   font-size: 0.9rem;
-}
-
-/* Candidate list photo */
-.candidate-photo {
-  width: 64px;
-  height: 64px;
-  object-fit: cover;
-  border-radius: 8px;
-}
-.candidate-photo.placeholder {
-  width: 64px;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
-  color: #999;
-  border-radius: 8px;
-  font-size: 0.85rem;
 }
 .col-photo {
   width: 80px;
@@ -513,143 +544,6 @@ button:hover {
 }
 
 /* Fullscreen hint */
-.fullscreen-hint {
-  position: fixed;
-  right: 18px;
-  top: 18px;
-  z-index: 10001;
-  background: rgba(0, 0, 0, 0.75);
-  color: #fff;
-  border-radius: 8px;
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.fullscreen-hint .hint-inner {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-.fullscreen-hint .btn {
-  padding: 6px 10px;
-  font-size: 0.9rem;
-}
-.fullscreen-hint .btn-secondary {
-  background: transparent;
-  color: #ffd700;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-@media (max-width: 720px) {
-  .fullscreen-hint {
-    right: 10px;
-    left: 10px;
-    top: 10px;
-    justify-content: center;
-  }
-}
-.status-card {
-  background: #fafafa;
-  padding: 12px;
-  border-radius: 8px;
-}
-.status-label {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-.big-number {
-  font-size: 2.2rem;
-  font-weight: 700;
-  margin-top: 6px;
-  color: var(--primary);
-}
-.progress-wrap {
-  margin: 14px 0;
-  text-align: left;
-}
-.progress {
-  height: 28px;
-  background: #f1f1f1;
-  border-radius: 14px;
-  overflow: hidden;
-}
-.progress-bar {
-  height: 100%;
-  background: linear-gradient(90deg, #3a1801, #7a3b12);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-}
-.last-served {
-  margin-top: 12px;
-}
-@media (max-width: 720px) {
-  .status-grid {
-    grid-template-columns: repeat(1, 1fr);
-  }
-  .big-number {
-    font-size: 1.6rem;
-  }
-}
-
-
-/* Candidate list photo */
-.candidate-photo {
-  width: 64px;
-  height: 64px;
-  object-fit: cover;
-  border-radius: 8px;
-}
-.candidate-photo.placeholder {
-  width: 64px;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
-  color: #999;
-  border-radius: 8px;
-  font-size: 0.85rem;
-}
-.col-photo {
-  width: 80px;
-}
-@media (max-width: 720px) {
-  .col-photo {
-    width: 60px;
-  }
-}
-
-/* Candidate list photo */
-.candidate-photo {
-  width: 64px;
-  height: 64px;
-  object-fit: cover;
-  border-radius: 8px;
-}
-.candidate-photo.placeholder {
-  width: 64px;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
-  color: #999;
-  border-radius: 8px;
-  font-size: 0.85rem;
-}
-.col-photo {
-  width: 80px;
-}
-@media (max-width: 720px) {
-  .col-photo {
-    width: 60px;
-  }
-}
-
-/* RESULTS PAGE */
 .results-filter {
   margin-bottom: 16px;
   display: flex;
@@ -709,12 +603,6 @@ button:hover {
 .result-meta .candidate-votes {
   margin-top: 4px;
 }
-.result-meta .candidate-status {
-  margin-top: 2px;
-}
-
-
-
 .result-meta .candidate-status {
   margin-top: 2px;
 }
@@ -810,17 +698,6 @@ button:hover {
   background-color: #62604c;
 }
 
-.data-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  min-width: 800px; /* a bit wider to space out columns */
-}
-
-.hidden-select {
-  display: none;
-}
-
 /* LIVE VOTE MONITOR */
 .live-votes-container {
   max-width: 1100px;
@@ -847,12 +724,9 @@ button:hover {
   margin-bottom: 4px;
 }
 .live-votes-number {
- 
   font-weight: 700;
   color: var(--primary);
-   font-size: 4rem;
-  font-weight: 700;
-  
+  font-size: 4rem;
   text-align: center;
 }
 .live-votes-number.big {
@@ -944,19 +818,6 @@ button:hover {
   justify-content: center; /* center vertically */
   text-align: center;
 }
-.live-votes-label {
-  font-size: 0.95rem;
-  color: var(--muted);
-  margin-bottom: 4px;
-  text-align: center;
-}
-
-.result-card.winner-active .result-photo {
-  width: 300px;
-  height: 300px;
-  box-shadow: 0 10px 24px rgba(0,0,0,0.4);
-  transform: scale(1.02);
-}
 
 /* Winner group card for ties */
 .winner-group-card {
@@ -974,12 +835,6 @@ button:hover {
   gap: 16px;
 }
 .winner-group-card .result-card {
-  border-color: #f7a758;
-  box-shadow: none;
-}
-
-
-winner-group-card .result-card {
   border-color: #f7a758;
   box-shadow: none;
 }
@@ -1026,82 +881,6 @@ winner-group-card .result-card {
   height: 50px;
 }
 
-.candidate-thumb img {
-  width: 140px;
-  height: 140px;
-  object-fit: cover;
-  border-radius: 12px;
-}
-.candidate-thumb.placeholder {
-  width: 140px;
-  height: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
-  color: #999;
-  border-radius: 12px;
-  font-size: 1rem;
-}
-.candidate-row {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
-
-
-
-.candidate-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-
-.candidate-option-large {
-  display: inline-block;
-}
-.candidate-card-large {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-.candidate-thumb img {
-  width: 160px;
-  height: 160px;
-  object-fit: cover;
-  border-radius: 12px;
-}
-.candidate-thumb.placeholder {
-  width: 160px;
-  height: 160px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
-  color: #999;
-  border-radius: 12px;
-  font-size: 1rem;
-}
-.candidate-name-large {
-  margin-top: 8px;
-  font-size: 1.25rem;
-  font-weight: 700;
-}
-
-/* Skip card styling */
-.skip-card .skip-thumb {
-  background: #f5e0d6;
-  color: #3a1801;
-  font-weight: 700;}
-
-  .voter-dashboard-title {
-  text-align: center;
-  margin-bottom: 20px;
-}
-
 /* Smaller button variant for inline actions (like reset votes) */
 .btn-small {
   display: inline-block;
@@ -1116,19 +895,6 @@ winner-group-card .result-card {
 }
 .btn-small:hover {
   background: #5b2a10;
-}
-
-.login-box button,
-button {
-  width: 100%;
-  padding: 12px 14px;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .portfolio-candidates-row {
@@ -1168,30 +934,13 @@ button {
 }
 
 
-/* LOGIN */
-.login-box {
-  max-width: 540px;
-  margin: 60px auto;
-  padding: 36px;
-  background: linear-gradient(180deg, #ffffff, #fbf7f6);
-  text-align: center;
-  border-radius: 12px;
-  box-shadow: 0 8px 22px var(--card-shadow);
-}
-
 /* Logo placeholder for voter/admin dashboards */
 .logo-placeholder {
   text-align: center;
   margin: 10px 0 20px;
 }
 .logo-placeholder img {
-  max-height: 80px;         /* adjust to your real logo */
-  width: auto;
-  display: inline-block;
-}
-.img-logo img {
+  max-height: 150px;         /* adjust to your real logo */
   width: 150px;
-  height: 150px;
-  margin: 0 auto;
-  
+  display: inline-block;
 }

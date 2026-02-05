@@ -9,6 +9,7 @@ from flask import (
     send_file,
     jsonify,
 )
+from functools import wraps
 from sqlalchemy import text
 from models import db, User, Class, Portfolio, Candidate, Vote, Election
 import os
@@ -17,6 +18,7 @@ import hashlib
 # optional server-side session support
 try:
     from flask_session import Session
+
     HAS_FLASK_SESSION = True
 except Exception:
     HAS_FLASK_SESSION = False
@@ -26,6 +28,7 @@ import pickle
 # optional image processing
 try:
     from PIL import Image, ImageOps
+
     HAS_PIL = True
 except Exception:
     HAS_PIL = False
@@ -61,16 +64,18 @@ db.init_app(app)
 import json
 from markupsafe import Markup
 
+
 def _escapejs_filter(s):
     if s is None:
-        return ''
+        return ""
     return Markup(json.dumps(str(s)))
 
-app.jinja_env.filters['escapejs'] = _escapejs_filter
+
+app.jinja_env.filters["escapejs"] = _escapejs_filter
 
 # Ensure `tojson` exists on older Jinja/Flask versions
-if 'tojson' not in app.jinja_env.filters:
-    app.jinja_env.filters['tojson'] = lambda s: Markup(json.dumps(s))
+if "tojson" not in app.jinja_env.filters:
+    app.jinja_env.filters["tojson"] = lambda s: Markup(json.dumps(s))
 
 
 def _current_device_password_hash():
@@ -82,19 +87,23 @@ def _current_device_password_hash():
 
 def is_device_authenticated():
     # check that session indicates auth and the stored password hash matches the current election device password
-    if not session.get('device_authenticated'):
+    if not session.get("device_authenticated"):
         return False
-    stored = session.get('device_password_hash')
+    stored = session.get("device_password_hash")
     current = _current_device_password_hash()
     return stored is not None and current is not None and stored == current
+
 
 # Optional: initialize server-side session store if Flask-Session is available
 if HAS_FLASK_SESSION:
     # Default to filesystem session store under the instance folder
-    app.config.setdefault('SESSION_TYPE', 'filesystem')
-    app.config.setdefault('SESSION_FILE_DIR', os.path.join(app.instance_path or app.root_path, 'flask_session'))
-    app.config.setdefault('SESSION_PERMANENT', False)
-    os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
+    app.config.setdefault("SESSION_TYPE", "filesystem")
+    app.config.setdefault(
+        "SESSION_FILE_DIR",
+        os.path.join(app.instance_path or app.root_path, "flask_session"),
+    )
+    app.config.setdefault("SESSION_PERMANENT", False)
+    os.makedirs(app.config["SESSION_FILE_DIR"], exist_ok=True)
     Session(app)
 
 
@@ -106,7 +115,7 @@ def clear_all_sessions(keep_admin=True):
         # Nothing to do when Flask-Session isn't enabled
         return
 
-    session_dir = app.config.get('SESSION_FILE_DIR')
+    session_dir = app.config.get("SESSION_FILE_DIR")
     if not session_dir or not os.path.isdir(session_dir):
         return
 
@@ -115,7 +124,7 @@ def clear_all_sessions(keep_admin=True):
         if not os.path.isfile(path):
             continue
         try:
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 data = f.read()
             # attempt to unpickle session data to inspect role
             try:
@@ -125,9 +134,9 @@ def clear_all_sessions(keep_admin=True):
 
             role = None
             if isinstance(sess_obj, dict):
-                role = sess_obj.get('role')
+                role = sess_obj.get("role")
             # if we should keep admin sessions and this file belongs to an admin, skip deletion
-            if keep_admin and role == 'admin':
+            if keep_admin and role == "admin":
                 continue
         except Exception:
             # if we can't inspect, fall through and delete the file to be safe
@@ -143,7 +152,7 @@ def clear_all_sessions(keep_admin=True):
 def _resize_image(path, size=None):
     if not HAS_PIL:
         return False
-    size = size or tuple(app.config.get('CANDIDATE_PHOTO_SIZE', (400, 400)))
+    size = size or tuple(app.config.get("CANDIDATE_PHOTO_SIZE", (400, 400)))
     try:
         with Image.open(path) as im:
             # respect EXIF orientation
@@ -152,16 +161,143 @@ def _resize_image(path, size=None):
             im = ImageOps.fit(im, size, Image.LANCZOS)
             # choose format based on extension
             ext = os.path.splitext(path)[1].lower()
-            fmt = 'PNG' if ext == '.png' else 'JPEG'
+            fmt = "PNG" if ext == ".png" else "JPEG"
             # convert to RGB for JPEG
-            if fmt == 'JPEG':
-                im = im.convert('RGB')
+            if fmt == "JPEG":
+                im = im.convert("RGB")
                 im.save(path, format=fmt, optimize=True, quality=85)
             else:
                 im.save(path, format=fmt, optimize=True)
         return True
     except Exception:
         return False
+
+
+def admin_required(f):
+    """Decorator to require admin role for a route"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get("role") != "admin":
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def admin_required_json(f):
+    """Decorator to require admin role and return JSON if unauthorized"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get("role") != "admin":
+            return jsonify({"error": "unauthorized"}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def is_ajax_request():
+    """Check if the request is an AJAX request or JSON request"""
+    return (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or request.is_json
+    )
+
+
+def get_voter_stats():
+    """Get voting statistics: total, voted, remaining voters"""
+    total = User.query.filter_by(role="voter", is_deleted=False).count()
+    voted = User.query.filter_by(role="voter", is_deleted=False, voted=True).count()
+    remaining = total - voted
+    return {"total": total, "voted": voted, "remaining": remaining}
+
+
+def get_last_voter():
+    """Get the last voter who cast a vote"""
+    last_vote = Vote.query.order_by(Vote.timestamp.desc()).first()
+    if last_vote:
+        voter = User.query.get(last_vote.voter_id)
+        if voter:
+            return {"index": voter.index_number, "name": voter.name}
+    return None
+
+
+def get_portfolio_votes(portfolio):
+    """Calculate votes for all candidates in a portfolio"""
+    visible_candidates = [
+        c for c in portfolio.candidates if not getattr(c, "is_deleted", False)
+    ]
+    for c in visible_candidates:
+        c.votes = Vote.query.filter_by(candidate_id=c.id).count()
+    return visible_candidates
+
+
+def calculate_vote_percentages(visible_candidates, total_voters=None):
+    """Calculate vote percentages for candidates.
+
+    If `total_voters` is provided, percentages are computed relative to the
+    total number of eligible voters (so skipped votes are included). Returns
+    a tuple (total_candidate_votes, skipped_percentage) where skipped_percentage
+    is rounded to 2 decimals (or None if not applicable).
+    """
+    total_candidate_votes = sum(c.votes for c in visible_candidates)
+
+    # When total_voters is provided compute percentages relative to all voters
+    if total_voters and total_voters > 0:
+        raw_percents = []
+        for c in visible_candidates:
+            raw = (c.votes / total_voters) * 100
+            raw_percents.append((c, raw))
+
+        skipped_raw = ((total_voters - total_candidate_votes) / total_voters) * 100
+
+        # Round each to 2 decimals
+        rounded = [(c, round(raw, 2)) for c, raw in raw_percents]
+        skipped_rounded = round(skipped_raw, 2)
+
+        # Fix rounding error so all percentages sum to exactly 100.00
+        sum_rounded = sum(r for _, r in rounded) + skipped_rounded
+        rounding_error = round(100.00 - sum_rounded, 2)
+        if abs(rounding_error) >= 0.01:
+            # Prefer to adjust skipped percentage if there were any skipped votes,
+            # otherwise adjust the candidate with the most votes.
+            if total_voters - total_candidate_votes > 0:
+                skipped_rounded = round(skipped_rounded + rounding_error, 2)
+            elif visible_candidates:
+                target = max(visible_candidates, key=lambda x: x.votes)
+                for i, (c, r) in enumerate(rounded):
+                    if c is target:
+                        rounded[i] = (c, round(r + rounding_error, 2))
+                        break
+
+        # Assign final rounded percentages to candidate objects
+        for c, r in rounded:
+            c.percentage = r
+
+        return total_candidate_votes, skipped_rounded
+
+    # Fallback: compute percentages relative to candidate total only
+    total_votes = total_candidate_votes
+    if total_votes > 0:
+        rounded = []
+        for c in visible_candidates:
+            raw = (c.votes / total_votes) * 100
+            rounded.append((c, round(raw, 2)))
+
+        sum_rounded = sum(r for _, r in rounded)
+        rounding_error = round(100.00 - sum_rounded, 2)
+        if abs(rounding_error) >= 0.01 and visible_candidates:
+            target = max(visible_candidates, key=lambda x: x.votes)
+            for i, (c, r) in enumerate(rounded):
+                if c is target:
+                    rounded[i] = (c, round(r + rounding_error, 2))
+                    break
+
+        for c, r in rounded:
+            c.percentage = r
+    else:
+        for c in visible_candidates:
+            c.percentage = 0.0
+
+    return total_candidate_votes, None
+
 
 # ------------------ ROUTES ------------------
 
@@ -195,7 +331,7 @@ def login():
         flash("Invalid login", "danger")
 
     # If admin just logged in, show them the post-login choice modal once
-    show_admin_modal = session.pop('admin_after_login', False)
+    show_admin_modal = session.pop("admin_after_login", False)
     e = Election.query.first()
     return render_template("login.html", show_admin_modal=show_admin_modal, election=e)
 
@@ -204,10 +340,10 @@ def login():
 @app.route("/logout")
 def logout():
     # Admin logout clears the whole session; voter logout only removes voter-specific keys but keeps device authentication active
-    if session.get('role') == 'admin':
+    if session.get("role") == "admin":
         session.clear()
     else:
-        session.pop('voter_id', None)
+        session.pop("voter_id", None)
     flash("Logged out successfully", "info")
     return redirect(url_for("login"))
 
@@ -221,11 +357,17 @@ def admindashboard():
         return redirect(url_for("login"))
 
     stats = {
-        "students": User.query.filter_by(role="voter").count(),
+        # Only count active (not soft-deleted) voters and candidates
+        "students": User.query.filter_by(role="voter", is_deleted=False).count(),
         "classes": Class.query.count(),
         "portfolios": Portfolio.query.count(),
-        "candidates": Candidate.query.count(),
-        "votes": Vote.query.count(),
+        "candidates": Candidate.query.filter_by(is_deleted=False).count(),
+        # Count only votes for non-deleted candidates to reflect active counts
+        "votes": (
+            Vote.query.join(Candidate, Vote.candidate_id == Candidate.id)
+            .filter(Candidate.is_deleted == False)
+            .count()
+        ),
     }
 
     election = Election.query.first()
@@ -358,7 +500,7 @@ def upload_students():
     # Read file (support XLSX/XLS/CSV) and validate headers
     filename = (file.filename or "").lower()
     try:
-        if filename.endswith('.csv'):
+        if filename.endswith(".csv"):
             df = pd.read_csv(file)
         else:
             df = pd.read_excel(file)
@@ -368,14 +510,27 @@ def upload_students():
 
     # Normalize headers and auto-detect common synonyms for validation (e.g. fullname -> name, gender -> sex)
     def _norm(s):
-        return ''.join(ch for ch in (s or '').lower() if ch.isalnum())
+        return "".join(ch for ch in (s or "").lower() if ch.isalnum())
 
     cols = list(df.columns)
     norm_map = {_norm(c): c for c in cols}
 
     synonyms = {
-        'name': ['name', 'fullname', 'full name', 'full_name', 'studentname', 'student name', 'full-name', 'firstlast', 'firstname', 'last_name', 'lastname', 'fullnam'],
-        'sex': ['sex', 'gender', 'g', 'genderidentity', 'gender identity'],
+        "name": [
+            "name",
+            "fullname",
+            "full name",
+            "full_name",
+            "studentname",
+            "student name",
+            "full-name",
+            "firstlast",
+            "firstname",
+            "last_name",
+            "lastname",
+            "fullnam",
+        ],
+        "sex": ["sex", "gender", "g", "genderidentity", "gender identity"],
     }
 
     mapped = {}
@@ -387,23 +542,23 @@ def upload_students():
                 break
 
     # Ensure explicit 'name' column is found even if not matched by synonyms
-    if 'name' not in mapped:
+    if "name" not in mapped:
         for c in cols:
-            if c.lower().strip() == 'name':
-                mapped['name'] = c
+            if c.lower().strip() == "name":
+                mapped["name"] = c
                 break
 
     # 'name' is required; 'sex' remains optional
-    if 'name' not in mapped:
-        detected = ', '.join(cols) if cols else 'none'
+    if "name" not in mapped:
+        detected = ", ".join(cols) if cols else "none"
         flash(
             f"Uploaded file is missing required column 'name'. Detected columns: {detected}. Expected at minimum: name (sex optional). Make sure your file has a header row with column 'name' (or 'fullname').",
             "danger",
         )
         return redirect(url_for("view_students"))
 
-    name_col = mapped['name']
-    sex_col = mapped.get('sex')
+    name_col = mapped["name"]
+    sex_col = mapped.get("sex")
 
     # Prepare seed based on year prefix
     year_prefix = str(classroom.year)[-2:]
@@ -449,7 +604,9 @@ def upload_students():
         return redirect(url_for("view_students"))
 
     db.session.commit()
-    flash(f"{added} students uploaded successfully with 6-digit index numbers.", "success")
+    flash(
+        f"{added} students uploaded successfully with 6-digit index numbers.", "success"
+    )
     return redirect(url_for("view_students"))
 
 
@@ -459,11 +616,13 @@ def download_students_sample():
     if session.get("role") != "admin":
         return redirect(url_for("login"))
 
-    class_id = request.args.get('class_id')
-    year = request.args.get('year')
+    class_id = request.args.get("class_id")
+    year = request.args.get("year")
 
     if not class_id or not year:
-        flash("Please select both Year and Class to download the sample file.", "danger")
+        flash(
+            "Please select both Year and Class to download the sample file.", "danger"
+        )
         return redirect(url_for("view_students"))
 
     classroom = Class.query.get(class_id)
@@ -476,10 +635,12 @@ def download_students_sample():
         return redirect(url_for("view_students"))
 
     # sample columns must match the upload expectations
-    df = pd.DataFrame([
-        {"name": "Daniel Dravie", "sex": "Male"},
-        {"name": "Daniella Dravie", "sex": "Female"},
-    ])
+    df = pd.DataFrame(
+        [
+            {"name": "Daniel Dravie", "sex": "Male"},
+            {"name": "Daniella Dravie", "sex": "Female"},
+        ]
+    )
 
     output = BytesIO()
     filename_base = f"sample_students_{classroom.name}_{classroom.year}"
@@ -537,16 +698,15 @@ def delete_student(student_id):
     student.is_deleted = True
     db.session.commit()
     # if AJAX request, return JSON
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json:
+    if is_ajax_request():
         return jsonify({"success": True})
     flash("Student deleted (can be undone)", "info")
     return redirect(url_for("view_students"))
 
 
 @app.route("/admin/students/<int:student_id>/undo", methods=["POST"])
+@admin_required_json
 def undo_delete_student(student_id):
-    if session.get("role") != "admin":
-        return jsonify({"error": "unauthorized"}), 403
     student = User.query.get_or_404(student_id)
     student.is_deleted = False
     db.session.commit()
@@ -555,11 +715,34 @@ def undo_delete_student(student_id):
     )
 
 
+@app.route("/admin/students/bulk-delete", methods=["POST"])
+@admin_required_json
+def bulk_delete_students():
+    data = request.get_json() or {}
+    student_ids = data.get("student_ids", [])
+    
+    if not student_ids:
+        return jsonify({"success": False, "error": "No students selected"}), 400
+    
+    try:
+        deleted_count = 0
+        for student_id in student_ids:
+            student = User.query.get(student_id)
+            if student and not student.is_deleted:
+                student.is_deleted = True
+                deleted_count += 1
+        
+        db.session.commit()
+        return jsonify({"success": True, "deleted_count": deleted_count})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ---------------- STUDENT API (inline edit) ----------------
 @app.route("/admin/students/<int:student_id>/api", methods=["POST"])
+@admin_required_json
 def api_edit_student(student_id):
-    if session.get("role") != "admin":
-        return jsonify({"error": "unauthorized"}), 403
     data = request.get_json() or {}
     student = User.query.get_or_404(student_id)
     name = data.get("name")
@@ -587,10 +770,8 @@ def api_edit_student(student_id):
 
 # ---------------- CANDIDATE CRUD ----------------
 @app.route("/admin/candidates/<int:candidate_id>/edit", methods=["GET", "POST"])
+@admin_required
 def edit_candidate(candidate_id):
-    if session.get("role") != "admin":
-        return redirect(url_for("login"))
-
     candidate = Candidate.query.get_or_404(candidate_id)
     portfolios = Portfolio.query.all()
     classes = Class.query.all()
@@ -598,18 +779,21 @@ def edit_candidate(candidate_id):
     if request.method == "POST":
         candidate.portfolio_id = int(request.form.get("portfolio_id"))
         # handle optional photo replacement
-        photo_file = request.files.get('photo')
+        photo_file = request.files.get("photo")
         if photo_file and photo_file.filename:
             from werkzeug.utils import secure_filename
             import uuid
-            ALLOWED_EXT = {'.png', '.jpg', '.jpeg', '.gif'}
+
+            ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".gif"}
             fname = secure_filename(photo_file.filename)
             _, ext = os.path.splitext(fname.lower())
             if ext not in ALLOWED_EXT:
-                flash('Unsupported image format. Allowed: png, jpg, jpeg, gif', 'danger')
-                return redirect(url_for('edit_candidate', candidate_id=candidate_id))
+                flash(
+                    "Unsupported image format. Allowed: png, jpg, jpeg, gif", "danger"
+                )
+                return redirect(url_for("edit_candidate", candidate_id=candidate_id))
             unique = f"{uuid.uuid4().hex}{ext}"
-            dest_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'candidates')
+            dest_dir = os.path.join(app.config["UPLOAD_FOLDER"], "candidates")
             os.makedirs(dest_dir, exist_ok=True)
             dest_path = os.path.join(dest_dir, unique)
             photo_file.save(dest_path)
@@ -621,7 +805,9 @@ def edit_candidate(candidate_id):
             # delete old photo file if present
             if candidate.photo:
                 try:
-                    old_path = os.path.join(app.config['UPLOAD_FOLDER'], candidate.photo)
+                    old_path = os.path.join(
+                        app.config["UPLOAD_FOLDER"], candidate.photo
+                    )
                     if os.path.exists(old_path):
                         os.remove(old_path)
                 except Exception:
@@ -641,11 +827,9 @@ def edit_candidate(candidate_id):
 
 
 @app.route("/admin/candidates/<int:candidate_id>/delete", methods=["POST"])
+@admin_required
 def delete_candidate(candidate_id):
     # soft-delete for compatibility
-    if session.get("role") != "admin":
-        return redirect(url_for("login"))
-
     candidate = Candidate.query.get_or_404(candidate_id)
     candidate.is_deleted = True
     db.session.commit()
@@ -656,9 +840,8 @@ def delete_candidate(candidate_id):
 
 
 @app.route("/admin/candidates/<int:candidate_id>/undo", methods=["POST"])
+@admin_required_json
 def undo_delete_candidate(candidate_id):
-    if session.get("role") != "admin":
-        return jsonify({"error": "unauthorized"}), 403
     candidate = Candidate.query.get_or_404(candidate_id)
     candidate.is_deleted = False
     db.session.commit()
@@ -673,11 +856,31 @@ def undo_delete_candidate(candidate_id):
     )
 
 
+@app.route("/admin/candidates/bulk-delete", methods=["POST"])
+@admin_required_json
+def bulk_delete_candidates():
+    data = request.get_json() or {}
+    candidate_ids = data.get("candidate_ids", [])
+    if not candidate_ids:
+        return jsonify({"success": False, "error": "No candidates selected"}), 400
+    try:
+        deleted_count = 0
+        for cid in candidate_ids:
+            cand = Candidate.query.get(cid)
+            if cand and not getattr(cand, 'is_deleted', False):
+                cand.is_deleted = True
+                deleted_count += 1
+        db.session.commit()
+        return jsonify({"success": True, "deleted_count": deleted_count})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ---------------- CANDIDATE API (inline edit) ----------------
 @app.route("/admin/candidates/<int:candidate_id>/api", methods=["POST"])
+@admin_required_json
 def api_edit_candidate(candidate_id):
-    if session.get("role") != "admin":
-        return jsonify({"error": "unauthorized"}), 403
     data = request.get_json() or {}
     candidate = Candidate.query.get_or_404(candidate_id)
     portfolio_id = data.get("portfolio_id")
@@ -696,10 +899,8 @@ def api_edit_candidate(candidate_id):
 
 
 @app.route("/admin/candidates", methods=["GET", "POST"])
+@admin_required
 def view_candidates():
-    if session.get("role") != "admin":
-        return redirect(url_for("login"))
-
     portfolios = Portfolio.query.all()
     classes = Class.query.all()
 
@@ -739,19 +940,22 @@ def view_candidates():
             user_id=voter.id, portfolio_id=portfolio_id, class_id=voter.class_id
         )
         # handle photo upload
-        photo_file = request.files.get('photo')
+        photo_file = request.files.get("photo")
         if photo_file and photo_file.filename:
             from werkzeug.utils import secure_filename
             import uuid
-            ALLOWED_EXT = {'.png', '.jpg', '.jpeg', '.gif'}
+
+            ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".gif"}
             fname = secure_filename(photo_file.filename)
             _, ext = os.path.splitext(fname.lower())
             if ext not in ALLOWED_EXT:
-                flash('Unsupported image format. Allowed: png, jpg, jpeg, gif', 'danger')
-                return redirect(url_for('view_candidates'))
+                flash(
+                    "Unsupported image format. Allowed: png, jpg, jpeg, gif", "danger"
+                )
+                return redirect(url_for("view_candidates"))
             # generate unique filename
             unique = f"{uuid.uuid4().hex}{ext}"
-            dest_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'candidates')
+            dest_dir = os.path.join(app.config["UPLOAD_FOLDER"], "candidates")
             os.makedirs(dest_dir, exist_ok=True)
             dest_path = os.path.join(dest_dir, unique)
             photo_file.save(dest_path)
@@ -778,65 +982,67 @@ def view_candidates():
     )
 
 
-@app.route('/admin/candidates/export')
+@app.route("/admin/candidates/export")
+@admin_required
 def export_candidates():
-    if session.get('role') != 'admin':
-        return redirect(url_for('login'))
-
     output = BytesIO()
-    writer = pd.ExcelWriter(output, engine='openpyxl')
+    writer = pd.ExcelWriter(output, engine="openpyxl")
 
     for portfolio in Portfolio.query.order_by(Portfolio.name).all():
         data = []
-        for candidate in portfolio.candidates:
-            if getattr(candidate, 'is_deleted', False):
-                continue
-            data.append({
-                'Candidate': candidate.user.name if candidate.user else 'N/A',
-                'Index Number': candidate.user.index_number if candidate.user else 'N/A',
-                'Class': candidate.classroom.name if candidate.classroom else 'N/A',
-                'Photo': candidate.photo if candidate.photo else '',
-            })
+        for candidate in [
+            c for c in portfolio.candidates if not getattr(c, "is_deleted", False)
+        ]:
+            data.append(
+                {
+                    "Candidate": candidate.user.name if candidate.user else "N/A",
+                    "Index Number": (
+                        candidate.user.index_number if candidate.user else "N/A"
+                    ),
+                    "Class": candidate.classroom.name if candidate.classroom else "N/A",
+                    "Photo": candidate.photo if candidate.photo else "",
+                }
+            )
         if data:
             df = pd.DataFrame(data)
             df.to_excel(writer, sheet_name=portfolio.name[:31], index=False)
 
     writer.close()
     output.seek(0)
-    return send_file(output, as_attachment=True, download_name='candidates_by_portfolio.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="candidates_by_portfolio.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
-@app.route('/admin/candidates/print')
+@app.route("/admin/candidates/print")
+@admin_required
 def print_candidates():
-    if session.get('role') != 'admin':
-        return redirect(url_for('login'))
-
     portfolios = Portfolio.query.order_by(Portfolio.name).all()
     # Filter candidates per portfolio and exclude deleted
-    return render_template('candidates_print.html', portfolios=portfolios)
+    return render_template("candidates_print.html", portfolios=portfolios)
 
 
 # ---------------- RESULTS (ADMIN) ----------------
 @app.route("/admin/results")
+@admin_required
 def view_results():
-    if session.get("role") != "admin":
-        return redirect(url_for("login"))
-
     portfolios = Portfolio.query.all()
 
     # Optional filter by portfolio_id from query string
     selected_id_param = request.args.get("portfolio_id", type=int)
     selected_portfolio = None
     winner_ids = set()
+    portfolio_total_votes = 0
+    skipped_percentage = None
+    visible_candidates = []
 
     # Pre-compute votes & winners for each portfolio
     for portfolio in portfolios:
-        visible_candidates = [
-            c for c in portfolio.candidates if not getattr(c, "is_deleted", False)
-        ]
-        for c in visible_candidates:
-            c.votes = Vote.query.filter_by(candidate_id=c.id).count()
-
+        visible_candidates = get_portfolio_votes(portfolio)
+        
         if visible_candidates:
             max_votes = max(c.votes for c in visible_candidates)
             portfolio.winners = [c for c in visible_candidates if c.votes == max_votes]
@@ -849,6 +1055,22 @@ def view_results():
 
     if selected_portfolio:
         winner_ids = {c.id for c in getattr(selected_portfolio, "winners", [])}
+        
+        # Calculate total votes for candidates in this portfolio and percentages
+        visible_candidates = [
+            c for c in selected_portfolio.candidates if not getattr(c, "is_deleted", False)
+        ]
+        # total_possible_votes = number of eligible voters
+        all_voters = User.query.filter_by(role="voter", is_deleted=False).all()
+        total_possible_votes = len(all_voters)
+
+        # calculate_vote_percentages now returns (total_candidate_votes, skipped_percentage)
+        portfolio_total_votes, skipped_percentage = calculate_vote_percentages(
+            visible_candidates, total_voters=total_possible_votes
+        )
+        # If there are no voters registered or no votes cast, show skipped as 0
+        if total_possible_votes == 0 or portfolio_total_votes == 0:
+            skipped_percentage = 0.0
 
     return render_template(
         "results.html",
@@ -856,34 +1078,66 @@ def view_results():
         selected_portfolio=selected_portfolio,
         selected_portfolio_id=selected_id_param,
         winner_ids=winner_ids,
+        portfolio_total_votes=portfolio_total_votes,
+        skipped_percentage=skipped_percentage,
+        candidates=visible_candidates,
     )
 
 
 @app.route("/admin/export")
+@admin_required
 def export_results():
-    if session.get("role") != "admin":
-        return redirect(url_for("login"))
-
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine="openpyxl")
 
     # Loop through all portfolios
     for portfolio in Portfolio.query.all():
         data = []
-        for candidate in portfolio.candidates:
-            if getattr(candidate, "is_deleted", False):
-                continue
+        visible_candidates = [
+            c for c in portfolio.candidates if not getattr(c, "is_deleted", False)
+        ]
+        
+        # Calculate total votes for this portfolio
+        total_votes = 0
+        vote_counts = {}
+        for candidate in visible_candidates:
             votes_count = Vote.query.filter_by(candidate_id=candidate.id).count()
+            vote_counts[candidate.id] = votes_count
+            total_votes += votes_count
+        
+        # Add candidate data with percentages
+        for candidate in visible_candidates:
+            votes_count = vote_counts[candidate.id]
+            percentage = (votes_count / total_votes * 100) if total_votes > 0 else 0
             data.append(
                 {
                     "Candidate": candidate.user.name if candidate.user else "N/A",
                     "Class": candidate.classroom.name if candidate.classroom else "N/A",
                     "Votes": votes_count,
+                    "Percentage": f"{percentage:.1f}%",
                 }
             )
+        
+        # Add skip votes row
+        all_voters = User.query.filter_by(role="voter", is_deleted=False).all()
+        total_possible_votes = len(all_voters)
+        skipped_votes = total_possible_votes - total_votes
+        skipped_percentage = (skipped_votes / total_possible_votes * 100) if total_possible_votes > 0 else 0
+        data.append(
+            {
+                "Candidate": "Skipped Votes",
+                "Class": "-",
+                "Votes": skipped_votes,
+                "Percentage": f"{skipped_percentage:.1f}%",
+            }
+        )
+        
         if data:
             df = pd.DataFrame(data)
-            df = df.sort_values(by="Votes", ascending=False)
+            # Sort by votes descending (skip votes row will stay at the end since it has 'Skipped Votes' name)
+            df_sorted = df[df["Candidate"] != "Skipped Votes"].sort_values(by="Votes", ascending=False)
+            df_skipped = df[df["Candidate"] == "Skipped Votes"]
+            df = pd.concat([df_sorted, df_skipped], ignore_index=True)
             df.index += 1  # Rank starting from 1
             df.to_excel(writer, sheet_name=portfolio.name[:31], index_label="Rank")
 
@@ -913,7 +1167,7 @@ def voter_dashboard():
     if voter.voted:
         flash("You have already voted", "info")
         # only remove voter session data, keep device authentication so next voter doesn't need to re-authenticate
-        session.pop('voter_id', None)
+        session.pop("voter_id", None)
         return redirect(url_for("public_voter_login"))
 
     portfolios = Portfolio.query.all()
@@ -970,7 +1224,7 @@ def submit_vote():
 
     flash("Your vote has been submitted successfully!", "success")
     # only remove voter session data; keep device authentication active so the next voter can vote without re-authenticating
-    session.pop('voter_id', None)
+    session.pop("voter_id", None)
     # After voting at a kiosk, return to the kiosk login so the next voter can enter their index number
     return redirect(url_for("public_voter_login"))
     if "voter_id" not in session:
@@ -1017,7 +1271,7 @@ def submit_vote():
     db.session.commit()
     flash("Your vote has been submitted successfully!", "success")
     # only remove voter session data; keep device authentication active so the next voter can vote without re-authenticating
-    session.pop('voter_id', None)
+    session.pop("voter_id", None)
     # After voting at a kiosk, return to the kiosk login so the next voter can enter their index number
     return redirect(url_for("public_voter_login"))
 
@@ -1041,7 +1295,9 @@ def voter_device_check():
         device_password = request.form.get("device_password")
         if device_password == election.device_password:
             session["device_authenticated"] = True  # mark device as authenticated
-            session["device_password_hash"] = hashlib.sha256(str(device_password).encode()).hexdigest()
+            session["device_password_hash"] = hashlib.sha256(
+                str(device_password).encode()
+            ).hexdigest()
             flash("Device authenticated successfully!", "success")
             return redirect(url_for("voter_dashboard"))
         else:
@@ -1052,10 +1308,8 @@ def voter_device_check():
 
 # ---------------- ADMIN: STUDENT CLASSES ----------------
 @app.route("/admin/student_classes", methods=["GET", "POST"])
+@admin_required
 def student_classes():
-    if session.get("role") != "admin":
-        return redirect(url_for("login"))
-
     if request.method == "POST":
         year = request.form.get("year")
         name = request.form.get("name")  # class name e.g., "Form 1A"
@@ -1080,12 +1334,47 @@ def student_classes():
     return render_template("student_class.html", classes=classes)
 
 
+@app.route("/admin/student_classes/<int:class_id>/api", methods=["POST"])
+@admin_required_json
+def api_edit_class(class_id):
+    data = request.get_json() or {}
+    cls = Class.query.get_or_404(class_id)
+    name = data.get('name')
+    year = data.get('year')
+    if name:
+        cls.name = name
+    if year is not None:
+        try:
+            cls.year = int(year)
+        except Exception:
+            pass
+    db.session.commit()
+    return jsonify({"success": True, "class": {"id": cls.id, "name": cls.name, "year": cls.year}})
+
+
+@app.route("/admin/student_classes/<int:class_id>/delete", methods=["POST"])
+@admin_required_json
+def delete_class(class_id):
+    cls = Class.query.get_or_404(class_id)
+    # prevent deletion if non-deleted students or candidates belong to this class
+    student_count = User.query.filter_by(class_id=class_id, is_deleted=False).count()
+    candidate_count = Candidate.query.filter_by(class_id=class_id, is_deleted=False).count()
+    if student_count > 0 or candidate_count > 0:
+        return (
+            jsonify(
+                {"success": False, "error": "Class has students or candidates; remove them first."}
+            ),
+            400,
+        )
+    db.session.delete(cls)
+    db.session.commit()
+    return jsonify({"success": True})
+
+
 # ---------------- PORTFOLIOS ----------------
 @app.route("/admin/portfolios", methods=["GET", "POST"])
+@admin_required
 def portfolios():
-    if session.get("role") != "admin":
-        return redirect(url_for("login"))
-
     if request.method == "POST":
         name = request.form.get("name")
         if name:
@@ -1100,12 +1389,39 @@ def portfolios():
     return render_template("portfolios.html", portfolios=portfolios)
 
 
+@app.route('/admin/portfolios/<int:portfolio_id>/api', methods=['POST'])
+@admin_required_json
+def api_edit_portfolio(portfolio_id):
+    data = request.get_json() or {}
+    p = Portfolio.query.get_or_404(portfolio_id)
+    name = data.get('name')
+    if name:
+        p.name = name
+        db.session.commit()
+        return jsonify({"success": True, "portfolio": {"id": p.id, "name": p.name}})
+    return jsonify({"success": False, "error": "Name required"}), 400
+
+
+@app.route('/admin/portfolios/<int:portfolio_id>/delete', methods=['POST'])
+@admin_required_json
+def delete_portfolio(portfolio_id):
+    p = Portfolio.query.get_or_404(portfolio_id)
+    # only consider non-deleted candidates when deciding if portfolio can be removed
+    candidate_count = Candidate.query.filter_by(portfolio_id=portfolio_id, is_deleted=False).count()
+    if candidate_count > 0:
+        return (
+            jsonify({"success": False, "error": "Portfolio has candidates; remove them first."}),
+            400,
+        )
+    db.session.delete(p)
+    db.session.commit()
+    return jsonify({"success": True})
+
+
 # ---------------- ELECTION ----------------
 @app.route("/admin/election", methods=["GET", "POST"])
+@admin_required
 def election():
-    if session.get("role") != "admin":
-        return redirect(url_for("login"))
-
     e = Election.query.first()
     if request.method == "POST":
         if not e:
@@ -1126,14 +1442,20 @@ def election():
         db.session.commit()
 
         # If device password changed, invalidate server-side sessions (if available)
-        password_changed = (old_password != device_password)
+        password_changed = old_password != device_password
         if password_changed:
             if HAS_FLASK_SESSION:
                 clear_all_sessions(keep_admin=True)
-                flash("Election settings updated and active sessions cleared (device password change)", "success")
+                flash(
+                    "Election settings updated and active sessions cleared (device password change)",
+                    "success",
+                )
             else:
                 # Even without Flask-Session, device auth will be invalidated because we compare stored hashes
-                flash("Election settings updated (device password changed). Active device sessions have been invalidated.", "success")
+                flash(
+                    "Election settings updated (device password changed). Active device sessions have been invalidated.",
+                    "success",
+                )
         else:
             flash("Election settings updated", "success")
         return redirect(url_for("election"))
@@ -1142,10 +1464,10 @@ def election():
 
 
 # ---------------- VOTER KIOSK (admin can open/close) ----------------
-@app.route('/admin/voter_kiosk', methods=['GET', 'POST'])
+@app.route("/admin/voter_kiosk", methods=["GET", "POST"])
 def admin_voter_kiosk():
-    if session.get('role') != 'admin':
-        return redirect(url_for('login'))
+    if session.get("role") != "admin":
+        return redirect(url_for("login"))
 
     e = Election.query.first()
     if not e:
@@ -1153,40 +1475,46 @@ def admin_voter_kiosk():
         db.session.add(e)
         db.session.commit()
 
-    if request.method == 'POST':
+    if request.method == "POST":
         # Accept either form-encoded or JSON (AJAX) submissions
-        action = request.form.get('action')
-        device_password = request.form.get('device_password')
+        action = request.form.get("action")
+        device_password = request.form.get("device_password")
         if request.is_json:
             data = request.get_json() or {}
-            action = data.get('action') or action
-            device_password = data.get('device_password') or device_password
+            action = data.get("action") or action
+            device_password = data.get("device_password") or device_password
 
         msg = None
         success = False
-        if action == 'open':
+        if action == "open":
             if device_password == e.device_password:
                 e.device_open = True
                 db.session.commit()
-                msg = 'Voter kiosk opened. Voters can now log in at /vote'
+                msg = "Voter kiosk opened. Voters can now log in at /vote"
                 success = True
             else:
-                msg = 'Wrong device password'
+                msg = "Wrong device password"
                 success = False
-        elif action == 'close':
+        elif action == "close":
             e.device_open = False
             db.session.commit()
-            msg = 'Voter kiosk closed'
+            msg = "Voter kiosk closed"
             success = True
 
         # Return JSON for AJAX requests
-        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': success, 'message': msg, 'device_open': e.device_open})
+        if (
+            request.is_json
+            or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        ):
+            return jsonify(
+                {"success": success, "message": msg, "device_open": e.device_open}
+            )
 
-        flash(msg, 'success' if success else 'danger')
-        return redirect(url_for('admin_voter_kiosk'))
+        flash(msg, "success" if success else "danger")
+        return redirect(url_for("admin_voter_kiosk"))
 
-    return render_template('admin_voter_kiosk.html', election=e)
+    return render_template("admin_voter_kiosk.html", election=e)
+
 
 @app.route("/students/export")
 def export_students():
@@ -1339,95 +1667,101 @@ def export_students():
             download_name="students_list.csv",
             mimetype="text/csv",
         )
+
+
 # Page shown to admin immediately after login, allowing them to choose to open the kiosk or go to dashboard
-@app.route('/admin/after_login')
+@app.route("/admin/after_login")
 def admin_after_login():
-    if session.get('role') != 'admin':
-        return redirect(url_for('login'))
+    if session.get("role") != "admin":
+        return redirect(url_for("login"))
     e = Election.query.first()
-    return render_template('admin_after_login.html', election=e)
+    return render_template("admin_after_login.html", election=e)
 
 
 # ---------------- PUBLIC VOTER LOGIN (kiosk) ----------------
-@app.route('/vote', methods=['GET', 'POST'])
+@app.route("/vote", methods=["GET", "POST"])
 def public_voter_login():
     e = Election.query.first()
     if not e or not e.is_active:
-        flash('Election is not active', 'warning')
-        return redirect(url_for('login'))
+        flash("Election is not active", "warning")
+        return redirect(url_for("login"))
 
     if not e.device_open:
-        flash('Voting kiosk is closed. Please wait for an administrator to open it.', 'warning')
-        return redirect(url_for('login'))
+        flash(
+            "Voting kiosk is closed. Please wait for an administrator to open it.",
+            "warning",
+        )
+        return redirect(url_for("login"))
 
-    if request.method == 'POST':
-        index = request.form.get('index_number')
+    if request.method == "POST":
+        index = request.form.get("index_number")
         if not index:
-            flash('Please enter your index number', 'warning')
-            return redirect(url_for('public_voter_login'))
-        voter = User.query.filter_by(index_number=index, role='voter', is_deleted=False).first()
+            flash("Please enter your index number", "warning")
+            return redirect(url_for("public_voter_login"))
+        voter = User.query.filter_by(
+            index_number=index, role="voter", is_deleted=False
+        ).first()
         if not voter:
-            flash('Voter not found', 'danger')
-            return redirect(url_for('public_voter_login'))
+            flash("Voter not found", "danger")
+            return redirect(url_for("public_voter_login"))
         if voter.voted:
-            flash('You have already voted', 'info')
-            return redirect(url_for('public_voter_login'))
+            flash("You have already voted", "info")
+            return redirect(url_for("public_voter_login"))
         # set voter in session and proceed to dashboard
-        session['voter_id'] = voter.id
-        return redirect(url_for('voter_dashboard'))
+        session["voter_id"] = voter.id
+        return redirect(url_for("voter_dashboard"))
 
-    return render_template('voter_kiosk_login.html')
+    return render_template("voter_kiosk_login.html")
 
 
 # ---------------- NOW SERVING (public) ----------------
-@app.route('/now_serving')
+@app.route("/now_serving")
 def now_serving():
     # Public display showing counts and last served voter
-    total = User.query.filter_by(role='voter', is_deleted=False).count()
-    voted = User.query.filter_by(role='voter', is_deleted=False, voted=True).count()
-    remaining = total - voted
-    last_vote = Vote.query.order_by(Vote.timestamp.desc()).first()
-    last_voter = None
-    if last_vote:
-        voter = User.query.get(last_vote.voter_id)
-        if voter:
-            last_voter = {'index': voter.index_number, 'name': voter.name}
+    stats = get_voter_stats()
+    last_voter = get_last_voter()
 
-    return render_template('now_serving.html', total=total, voted=voted, remaining=remaining, last_voter=last_voter)
+    return render_template(
+        "now_serving.html",
+        total=stats["total"],
+        voted=stats["voted"],
+        remaining=stats["remaining"],
+        last_voter=last_voter,
+    )
 
 
-@app.route('/now_serving/status')
+@app.route("/now_serving/status")
 def now_serving_status():
-    total = User.query.filter_by(role='voter', is_deleted=False).count()
-    voted = User.query.filter_by(role='voter', is_deleted=False, voted=True).count()
-    remaining = total - voted
-    last_vote = Vote.query.order_by(Vote.timestamp.desc()).first()
-    last_voter = None
-    if last_vote:
-        voter = User.query.get(last_vote.voter_id)
-        if voter:
-            last_voter = {'index': voter.index_number, 'name': voter.name}
+    stats = get_voter_stats()
+    last_voter = get_last_voter()
 
-    return jsonify({'total': total, 'voted': voted, 'remaining': remaining, 'last_voter': last_voter})
+    return jsonify(
+        {
+            "total": stats["total"],
+            "voted": stats["voted"],
+            "remaining": stats["remaining"],
+            "last_voter": last_voter,
+        }
+    )
 
-@app.route('/live_votes')
+
+@app.route("/live_votes")
 def live_votes():
-    total = User.query.filter_by(role='voter', is_deleted=False).count()
-    voted = User.query.filter_by(role='voter', is_deleted=False, voted=True).count()
-    remaining = total - voted
+    stats = get_voter_stats()
     # hide navbar on live votes screen
-    return render_template('live_votes.html',
-                           total=total,
-                           voted=voted,
-                           remaining=remaining,
-                           show_navbar=False)
+    return render_template(
+        "live_votes.html",
+        total=stats["total"],
+        voted=stats["voted"],
+        remaining=stats["remaining"],
+        show_navbar=False,
+    )
 
-@app.route('/live_votes/status')
+
+@app.route("/live_votes/status")
 def live_votes_status():
-    total = User.query.filter_by(role='voter', is_deleted=False).count()
-    voted = User.query.filter_by(role='voter', is_deleted=False, voted=True).count()
-    remaining = total - voted
-    return jsonify({'total': total, 'voted': voted, 'remaining': remaining})
+    stats = get_voter_stats()
+    return jsonify({"total": stats["total"], "voted": stats["voted"], "remaining": stats["remaining"]})
 
 
 @app.route("/admin/reset_votes", methods=["POST"])
@@ -1445,6 +1779,8 @@ def reset_votes():
     db.session.commit()
     flash("All votes and voter statuses have been reset.", "success")
     return redirect(url_for("view_students"))
+
+
 # ---------------- APP STARTUP & DB MIGRATION ----------------
 if __name__ == "__main__":
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
@@ -1487,7 +1823,9 @@ if __name__ == "__main__":
                 if "device_open" not in election_cols:
                     print("Adding device_open column to election table")
                     conn.execute(
-                        text("ALTER TABLE election ADD COLUMN device_open INTEGER DEFAULT 0")
+                        text(
+                            "ALTER TABLE election ADD COLUMN device_open INTEGER DEFAULT 0"
+                        )
                     )
         except Exception as e:
             # Surface migration errors to the console so we can debug them
@@ -1519,4 +1857,8 @@ if __name__ == "__main__":
         db.session.commit()
 
     app.run(debug=True)
+
+
+
+
 

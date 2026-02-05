@@ -39,16 +39,22 @@
 
 <hr>
 <h3>Registered Candidates</h3>
-<!-- Hidden portfolio options for modal population -->
-<select id="portfolio-options" style="display:none">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <!-- Hidden portfolio options for modal population -->
+    <select id="portfolio-options" style="display:none">
     <option value="">None</option>
     {% for p in portfolios %}
     <option value="{{ p.id }}">{{ p.name }}</option>
     {% endfor %}
-</select>
+    </select>
+    <div>
+        <button id="delete-selected-candidates-btn" class="btn-small" style="background-color:#c34545; display:none;" onclick="bulkDeleteCandidates()">Delete Selected</button>
+    </div>
+</div>
 <table id="candidates-table" class="data-table">
     <thead>
         <tr>
+            <th style="width:40px"><input type="checkbox" id="select-all-candidates" onchange="toggleSelectAllCandidates()"></th>
             <th>#</th>
             <th class="col-photo">Photo</th>
             <th class="col-name">Name</th>
@@ -60,6 +66,7 @@
     <tbody>
         {% for c in candidates %}
         <tr data-candidate-id="{{ c.id }}">
+            <td><input type="checkbox" class="candidate-checkbox" value="{{ c.id }}" onchange="updateDeleteCandidatesButton()"></td>
             <td class="col-index">{{ loop.index }}</td>
             <td class="col-photo">
                 {% if c.photo %}
@@ -79,6 +86,8 @@
         {% endfor %}
     </tbody>
 </table>
+
+ 
 
 <!-- Candidate Edit Modal -->
 <div id="candidate-modal" class="modal-overlay" role="dialog" aria-modal="true">
@@ -104,4 +113,50 @@
         </div>
     </div>
 </div>  
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleSelectAllCandidates() {
+    const selectAll = document.getElementById('select-all-candidates');
+    document.querySelectorAll('.candidate-checkbox').forEach(cb => {
+        cb.checked = selectAll.checked;
+    });
+    updateDeleteCandidatesButton();
+}
+
+function updateDeleteCandidatesButton() {
+    const selected = document.querySelectorAll('.candidate-checkbox:checked').length;
+    const btn = document.getElementById('delete-selected-candidates-btn');
+    btn.style.display = selected > 0 ? 'inline-block' : 'none';
+}
+
+function bulkDeleteCandidates() {
+    const selected = Array.from(document.querySelectorAll('.candidate-checkbox:checked')).map(cb => parseInt(cb.value));
+    if (selected.length === 0) {
+        alert('Please select candidates to delete');
+        return;
+    }
+    if (!confirm(`Are you sure you want to delete ${selected.length} candidate(s)?`)) return;
+
+    fetch('{{ url_for("bulk_delete_candidates") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate_ids: selected })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Deleted ${data.deleted_count} candidate(s)`);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown'));
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Error deleting candidates');
+    });
+}
+</script>
 {% endblock %}

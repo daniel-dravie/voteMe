@@ -31,7 +31,7 @@
         <strong>{{ portfolio_total_votes }}</strong>
         {% if skipped_percentage is not none %}
           &nbsp;|&nbsp; Skipped:
-          <strong>{{ skipped_percentage }}%</strong>
+          <strong>{{ '%.2f' % skipped_percentage }}%</strong>
         {% endif %}
       </p>
 
@@ -39,7 +39,7 @@
       <div id="winner-group-container"></div>
 
       <div class="results-grid">
-        {% for candidate in selected_portfolio.candidates %}
+        {% for candidate in candidates %}
           <div class="result-card {% if candidate.id in winner_ids %}winner{% endif %}">
             <div class="result-photo-wrap">
               {% if candidate.photo %}
@@ -65,7 +65,7 @@
               <div class="candidate-votes">
                 Votes: {{ candidate.votes }}
                 {% if candidate.percentage is defined %}
-                  ({{ '%.1f' % candidate.percentage }}%)
+                  ({{ '%.2f' % candidate.percentage }}%)
                 {% endif %}
               </div>
               <div class="candidate-status">

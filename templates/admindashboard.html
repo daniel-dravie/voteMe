@@ -3,11 +3,10 @@
 {% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
-<div class="logo-placeholder">
-    <!-- Replace src with your real logo file when available -->
-    <img src="{{ url_for('static', filename='img/school_logo.png') }}" alt="School Logo">
-</div>
-<h2 style="text-align:center;">Welcome to Admin Dashboard</h2>
+<header class="dashboard-header">
+    <img src="{{ url_for('static', filename='images/logojuass.png') }}" alt="Site Logo" class="dashboard-logo" />
+    <h2 class="dashboard-title">Welcome to Admin Dashboard</h2>
+</header>
 
 <div class="dashboard-cards">
 
@@ -55,3 +54,14 @@
 {% endblock %}
 
 {% block styles %}{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    const logo = document.querySelector('.dashboard-logo');
+    if(!logo) return;
+    // small timeout so the transition is visible on page load
+    setTimeout(() => logo.classList.add('fade-in'), 80);
+});
+</script>
+{% endblock %}

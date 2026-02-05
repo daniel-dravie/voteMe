@@ -42,6 +42,76 @@
             {% endfor %}
         </select>
         <label>Class</label>
+<script>
+function toggleSelectAll() {
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    const studentCheckboxes = document.querySelectorAll('.student-checkbox');
+    const visibleRows = document.querySelectorAll('#students-table tbody tr[style=""] , #students-table tbody tr:not([style*="display: none"])');
+    
+    studentCheckboxes.forEach(checkbox => {
+        const row = checkbox.closest('tr');
+        if (row.style.display !== 'none') {
+            checkbox.checked = selectAllCheckbox.checked;
+        }
+    });
+    updateDeleteButton();
+}
+
+function updateDeleteButton() {
+    const selectedCount = document.querySelectorAll('.student-checkbox:checked').length;
+    const deleteBtn = document.getElementById('delete-selected-btn');
+    deleteBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
+}
+
+function bulkDeleteStudents() {
+    const selectedCheckboxes = document.querySelectorAll('.student-checkbox:checked');
+    if (selectedCheckboxes.length === 0) {
+        alert('Please select students to delete');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete ${selectedCheckboxes.length} student(s)? This action can be undone.`)) {
+        return;
+    }
+    
+    const studentIds = Array.from(selectedCheckboxes).map(cb => parseInt(cb.value));
+    
+    fetch('{{ url_for("bulk_delete_students") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ student_ids: studentIds })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Successfully deleted ${data.deleted_count} student(s)`);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error deleting students');
+    });
+}
+
+// Update delete button visibility when search filters results
+const observer = new MutationObserver(() => {
+    document.querySelectorAll('.student-checkbox').forEach(cb => {
+        cb.checked = false;
+    });
+    document.getElementById('select-all-checkbox').checked = false;
+    updateDeleteButton();
+});
+
+observer.observe(document.getElementById('students-table'), { 
+    subtree: true, 
+    attributes: true 
+});
+</script>
     </div>
     <div class="floating-label">
         <input type="file" name="file" accept=".xlsx,.xls" required>
@@ -121,12 +191,17 @@ document.addEventListener('DOMContentLoaded', function () {
 </p>
 
 <h3>Students List</h3>
-<div class="students-export-bar">
-    <button type="submit" class="btn-small">
-    <a href="{{ url_for('export_students') }}" class="btn">
-        Download all students (Excel)
-    </a> 
-</button>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <div>
+        <button type="submit" class="btn-small">
+            <a href="{{ url_for('export_students') }}" class="btn">
+                Download all students (Excel)
+            </a>
+        </button>
+    </div>
+    <div>
+        <button id="delete-selected-btn" class="btn-small" style="background-color: #c34545; display: none;" onclick="bulkDeleteStudents()">Delete Selected</button>
+    </div>
 </div>
 
 
@@ -152,6 +227,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <table id="students-table" class="data-table">
     <thead>
         <tr>
+            <th style="width: 40px;"><input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll()"></th>
             <th>Index Number</th>
             <th>Name</th>
             <th>Sex</th>
@@ -162,7 +238,8 @@ document.addEventListener('DOMContentLoaded', function () {
     </thead>
     <tbody>
         {% for student in students %}
-        <tr data-student-id="{{ student.id }}">
+        <tr data-student-id="{{ student.id }}" class="student-row">
+            <td><input type="checkbox" class="student-checkbox" value="{{ student.id }}" onchange="updateDeleteButton()"></td>
             <td class="col-index">{{ student.index_number }}</td>
             <td class="col-name">{{ student.name }}</td>
             <td class="col-sex">{{ student.sex }}</td>

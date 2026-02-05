@@ -30,14 +30,19 @@
             <th>#</th>
             <th>Class Name</th>
             <th>Year</th>
+            <th>Actions</th>
         </tr>
     </thead>
     <tbody>
         {% for c in classes %}
         <tr>
             <td>{{ loop.index }}</td>
-            <td>{{ c.name }}</td>
-            <td>{{ c.year }}</td>
+            <td class="col-name">{{ c.name }}</td>
+            <td class="col-year">{{ c.year }}</td>
+            <td>
+                <button class="btn-secondary" onclick="editClass({{ c.id }}, '{{ c.name }}', {{ c.year }})">Edit</button>
+                <button class="btn-secondary" onclick="deleteClass({{ c.id }})">Delete</button>
+            </td>
         </tr>
         {% else %}
         <tr>
@@ -46,4 +51,67 @@
         {% endfor %}
     </tbody>
 </table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function editClass(id, name, year) {
+    const overlay = document.getElementById('class-modal');
+    overlay.dataset.classId = id;
+    document.getElementById('modal-class-name').value = name || '';
+    document.getElementById('modal-class-year').value = year || '';
+    overlay.classList.add('show');
+}
+
+function deleteClass(id) {
+    if (!confirm('Delete this class? This will fail if students or candidates belong to it.')) return;
+    fetch(`/admin/student_classes/${id}/delete`, { method: 'POST' })
+    .then(r=>r.json()).then(j=>{
+        if (j.success) location.reload(); else alert(j.error||'Delete failed');
+    }).catch(()=>alert('Request failed'));
+}
+
+function submitClassModal() {
+    const overlay = document.getElementById('class-modal');
+    const id = overlay.dataset.classId;
+    const name = document.getElementById('modal-class-name').value.trim();
+    const year = parseInt(document.getElementById('modal-class-year').value, 10);
+    if (!name || isNaN(year)) { alert('Name and year are required'); return; }
+
+    fetch(`/admin/student_classes/${id}/api`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, year: year })
+    }).then(r=>r.json()).then(j=>{
+        if (j.success) location.reload(); else alert('Update failed');
+    }).catch(()=>alert('Request failed'));
+}
+</script>
+
+<!-- Edit Class Modal -->
+<div id="class-modal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Edit Class</h3>
+            <button class="modal-close" onclick="closeModal('class-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <form id="class-modal-form" onsubmit="return false;">
+                <div class="floating-label">
+                    <input type="text" id="modal-class-name" placeholder=" " required>
+                    <label for="modal-class-name">Class Name</label>
+                </div>
+                <div class="floating-label">
+                    <input type="number" id="modal-class-year" placeholder=" " required>
+                    <label for="modal-class-year">Year</label>
+                </div>
+            </form>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal('class-modal')">Cancel</button>
+            <button class="btn" onclick="submitClassModal()">Save</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

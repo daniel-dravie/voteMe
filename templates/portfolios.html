@@ -25,13 +25,18 @@
         <tr>
             <th>#</th>
             <th>Name</th>
+            <th>Actions</th>
         </tr>
     </thead>
     <tbody>
         {% for p in portfolios %}
         <tr>
             <td>{{ loop.index }}</td>
-            <td>{{ p.name }}</td>
+            <td class="col-name">{{ p.name }}</td>
+            <td>
+                <button class="btn-secondary" onclick="editPortfolio({{ p.id }}, '{{ p.name }}')">Edit</button>
+                <button class="btn-secondary" onclick="deletePortfolio({{ p.id }})">Delete</button>
+            </td>
         </tr>
         {% else %}
         <tr>
@@ -40,4 +45,61 @@
         {% endfor %}
     </tbody>
 </table> 
+{% endblock %}
+
+{% block scripts %}
+<script>
+function editPortfolio(id, name) {
+    const overlay = document.getElementById('portfolio-modal');
+    overlay.dataset.portfolioId = id;
+    document.getElementById('modal-portfolio-name').value = name || '';
+    overlay.classList.add('show');
+}
+
+function deletePortfolio(id) {
+    if (!confirm('Delete this portfolio? This will fail if candidates belong to it.')) return;
+    fetch(`/admin/portfolios/${id}/delete`, { method: 'POST' })
+    .then(r=>r.json()).then(j=>{
+        if (j.success) location.reload(); else alert(j.error||'Delete failed');
+    }).catch(()=>alert('Request failed'));
+}
+
+function submitPortfolioModal() {
+    const overlay = document.getElementById('portfolio-modal');
+    const id = overlay.dataset.portfolioId;
+    const name = document.getElementById('modal-portfolio-name').value.trim();
+    if (!name) { alert('Name is required'); return; }
+
+    fetch(`/admin/portfolios/${id}/api`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name })
+    }).then(r=>r.json()).then(j=>{
+        if (j.success) location.reload(); else alert('Update failed');
+    }).catch(()=>alert('Request failed'));
+}
+</script>
+
+<!-- Edit Portfolio Modal -->
+<div id="portfolio-modal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Edit Portfolio</h3>
+            <button class="modal-close" onclick="closeModal('portfolio-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <form id="portfolio-modal-form" onsubmit="return false;">
+                <div class="floating-label">
+                    <input type="text" id="modal-portfolio-name" placeholder=" " required>
+                    <label for="modal-portfolio-name">Portfolio Name</label>
+                </div>
+            </form>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal('portfolio-modal')">Cancel</button>
+            <button class="btn" onclick="submitPortfolioModal()">Save</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
